@@ -32,43 +32,82 @@ mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=tran
 
 data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=100, shuffle=True)
 
-#Discriminator
-D = nn.Sequential(
-    nn.Linear(784, 256),
+nz = 64
+ns = 2
+
+#(zL,xL) and (zR,xR)
+D_bot = nn.Sequential(
+    nn.Linear(784/ns + nz, 256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 1))
 
-#Critic
-C = nn.Sequential(
-    nn.Linear(784, 256),
+#(z,zL,zR)
+D_top = nn.Sequential(
+    nn.Linear(nz*ns + nz, 256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 1))
 
-# Generator 
-G = nn.Sequential(
-    nn.Linear(64, 256),
+#(xL->zL) and (xR->zR)
+inf_bot = nn.Sequential(
+    nn.Linear(784/ns, 256),
     nn.BatchNorm1d(256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 256),
     nn.BatchNorm1d(256),
     nn.LeakyReLU(0.2),
-    nn.Linear(256, 784),
+    nn.Linear(256, nz),
     nn.Tanh())
 
-if torch.cuda.is_available():
-    D.cuda()
-    C.cuda()
-    G.cuda()
+#(zL->xL) and (zR->xR)
+gen_bot = nn.Sequential(
+    nn.Linear(nz, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, 784/ns),
+    nn.Tanh())
 
-d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0003)
-g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0003)
-c_optimizer = torch.optim.Adam(C.parameters(), lr=0.0003)
+#(zL,zR -> z)
+inf_top = nn.Sequential(
+    nn.Linear(nz*ns, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, nz),
+    nn.Tanh())
+
+#(z -> zL,zR)
+gen_top = nn.Sequential(
+    nn.Linear(nz, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, 256),
+    nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.2),
+    nn.Linear(256, ns*nz),
+    nn.Tanh())
+
+models = [D_top, D_bot, inf_bot, gen_bot, inf_top, gen_top]
+
+if torch.cuda.is_available():
+    for model in models: 
+        model.cuda()
+
+d_top_optimizer = torch.optim.Adam(D_top.parameters(), lr=0.0003)
+d_bot_optimizer = torch.optim.Adam(D_bot.parameters(), lr=0.0003)
+inf_bot_optimizer = torch.optim.Adam(inf_bot.parameters(), lr=0.0003)
+gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003)
+inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003)
+gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
+
 
 for epoch in range(200):
     for i, (images, _) in enumerate(data_loader):
@@ -81,55 +120,35 @@ for epoch in range(200):
         fake_labels = to_var(torch.zeros(batch_size))
         boundary_labels = to_var(0.5 * torch.ones(batch_size))
 
-        outputs = D(images)
-        d_loss_real = ((outputs - real_labels)**2).mean()
-        real_score = outputs
+        outputs_left = D(images[:,:784/2])
+        d_loss_real_left = ((outputs_left - real_labels)**2).mean()
+        real_score = outputs_left
 
         z = to_var(torch.randn(batch_size, 64))
         fake_images = G(z)
-        outputs = D(fake_images)
+        outputs_left = D(fake_images)
+        outputs_right = 
         d_loss_fake = ((outputs - fake_labels)**2).mean()
         fake_score = outputs
 
-        d_loss = d_loss_real + d_loss_fake
+        d_loss_left = d_loss_real_left + d_loss_fake_left
+        d_loss_right = d_loss_real_right + d_loss_fake_right
 
-        D.zero_grad()
+        D_left.zero_grad()
+        D_right.zero_grad()
         d_loss.backward()
         d_optimizer.step()
 
-        #z = to_var(torch.randn(batch_size, 64))
-        #fake_images = G(z)
-        for k in range(0,1):
-            outputs_critic = C(to_var(fake_images.data))
-            c_loss = (torch.abs(outputs_critic - to_var(fake_score.data))).mean()
 
-            C.zero_grad()
-            c_loss.backward()
-            c_optimizer.step()
-
-            outputs_critic = C(to_var(images.data))
-            c_loss = (torch.abs(outputs_critic - to_var(real_score.data))).mean()
-
-            C.zero_grad()
-            c_loss.backward()
-            c_optimizer.step()
-
-
-            print "c loss", k, c_loss
-
-        print "fake scores D", fake_score[0:10]
-        print "real scores D", real_score[0:10]
-        print "fake scores C", outputs_critic[0:10]
         print "epoch", epoch
         #============TRAIN GENERATOR========================$
 
         z = to_var(torch.randn(batch_size, 64))
         fake_images = G(z)
 
-        if epoch > 100:
-            outputs = C(fake_images)
-        else:
-            outputs = D(fake_images)
+        outputs_left = D(fake_images[:,:392])
+        outputs_right = D(fake_images[:,392:])
+
         g_loss = ((outputs - boundary_labels)**2).mean()
         
         D.zero_grad()
