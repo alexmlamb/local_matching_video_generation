@@ -26,6 +26,10 @@ def denorm(x):
     out = (x+1)/2
     return out.clamp(0,1)
 
+real_labels = to_var(torch.ones(batch_size))
+fake_labels = to_var(torch.zeros(batch_size))
+boundary_labels = to_var(0.5 * torch.ones(batch_size))
+
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
 
 mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
@@ -114,11 +118,12 @@ for epoch in range(200):
 
         batch_size = images.size(0)
 
+        #====
+        #Inference Procedure
+        #====
+
         images = to_var(images.view(batch_size, -1))
 
-        real_labels = to_var(torch.ones(batch_size))
-        fake_labels = to_var(torch.zeros(batch_size))
-        boundary_labels = to_var(0.5 * torch.ones(batch_size))
 
         outputs_left = D(images[:,:784/2])
         d_loss_real_left = ((outputs_left - real_labels)**2).mean()
@@ -131,6 +136,8 @@ for epoch in range(200):
         d_loss_fake = ((outputs - fake_labels)**2).mean()
         fake_score = outputs
 
+        #Feed inference to discriminators
+
         d_loss_left = d_loss_real_left + d_loss_fake_left
         d_loss_right = d_loss_real_right + d_loss_fake_right
 
@@ -141,20 +148,32 @@ for epoch in range(200):
 
 
         print "epoch", epoch
-        #============TRAIN GENERATOR========================$
+        #============GENERATION PROCESS========================$
 
-        z = to_var(torch.randn(batch_size, 64))
-        fake_images = G(z)
+        z_top = to_var(torch.randn(batch_size, 64))
 
-        outputs_left = D(fake_images[:,:392])
-        outputs_right = D(fake_images[:,392:])
+        z_bot = gen_top(z_top)
 
-        g_loss = ((outputs - boundary_labels)**2).mean()
-        
-        D.zero_grad()
-        G.zero_grad()
-        g_loss.backward()
-        g_optimizer.step()
+        gen_x_lst = []
+
+        for seg in range(0,ns):
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz]
+            seg_x = gen_bot(seg_z)
+            gen_x_lst.append(seg_x)
+            d_out_bot = d_bot(join_bot_d(seg_x, seg_z))
+            d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
+            
+            d_bot.zero_grad()
+            d_loss_bot.backward(retain_graph=True)
+            d_bot_optimizer().step()
+
+            g_loss_bot = ((d_out_bot - boundary_labels)**2).mean()
+            gen_bot.zero_grad()
+            d_bot.zero_grad()
+            g_loss_bot.backward()
+            g_bot_optimizer.step()
+
+
 
     fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
     save_image(denorm(fake_images.data), './data/%s_fake_images.png' %(slurm_name))
