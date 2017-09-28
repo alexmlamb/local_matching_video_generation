@@ -41,7 +41,9 @@ data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, 
 
 
 nz = 128
-ns = 2
+ns = 1
+
+print "ns", ns
 
 #(zL,xL) and (zR,xR)
 d_bot = nn.Sequential(
@@ -141,12 +143,18 @@ for epoch in range(200):
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
             g_loss_bot = ((d_out_bot - boundary_labels)**2).mean()
 
+            reconstruction = gen_bot(zs)
+
+            g_loss_bot += 0.01 * ((reconstruction - xs)**2).mean()
+
             d_bot.zero_grad()
             d_loss_bot.backward(retain_graph=True)
             d_bot_optimizer.step()
 
+            gen_bot.zero_grad()
             inf_bot.zero_grad()
-            g_loss_bot.backward()
+            g_loss_bot.backward(retain_graph=True)
+            gen_bot_optimizer.step()
             inf_bot_optimizer.step()
 
             z_bot_lst.append(zs)
@@ -197,7 +205,10 @@ for epoch in range(200):
         gen_x_lst = []
         for seg in range(0,ns):
             seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-            seg_x = gen_bot(seg_z)
+            seg_1 = gen_bot(seg_z)
+            seg_2 = inf_bot(seg_1)
+            seg_x = gen_bot(seg_2)
+
             gen_x_lst.append(seg_x)
             d_out_bot = d_bot(torch.cat((seg_z, seg_x),1))
             d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
@@ -208,15 +219,42 @@ for epoch in range(200):
 
             g_loss_bot = ((d_out_bot - boundary_labels)**2).mean()
             gen_bot.zero_grad()
+            inf_bot.zero_grad()
             d_bot.zero_grad()
-            g_loss_bot.backward()
+            g_loss_bot.backward(retain_graph=True)
             gen_bot_optimizer.step()
+
+            inf_bot_optimizer.step()
 
         print d_out_bot
 
+    fake_images = torch.cat(gen_x_lst, 1)
 
     fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
     save_image(denorm(fake_images.data), './data/%s_fake_images.png' %(slurm_name))
 
+    
+    real_images = images.view(images.size(0), 1, 28, 28)
+    save_image(denorm(real_images.data), './data/%s_real_images.png' %(slurm_name))
 
+    
+    z_bot_lst = []
+    for seg in range(0,ns):
+        xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
+        zs = inf_bot(xs)
+        z_bot_lst.append(zs)
+    z_bot = torch.cat(z_bot_lst, 1)
+    z_top = inf_top(z_bot)
+    z_bot = gen_top(z_top)
+    gen_x_lst = []
+    for seg in range(0,ns):
+        seg_z = z_bot[:,seg*nz:(seg+1)*nz]
+        seg_1 = gen_bot(seg_z)
+        seg_2 = inf_bot(seg_1)
+        seg_x = gen_bot(seg_2)
+        gen_x_lst.append(seg_x)
+    rec_images = torch.cat(gen_x_lst, 1)
+
+    rec_images = rec_images.view(rec_images.size(0), 1, 28, 28)
+    save_image(denorm(rec_images.data), './data/%s_rec_images.png' %(slurm_name))
 
