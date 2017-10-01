@@ -10,6 +10,7 @@ from torch.autograd import Variable, grad
 from torchvision.utils import save_image
 import os
 slurm_name = os.environ["SLURM_JOB_ID"]
+from utils import to_var
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -17,10 +18,6 @@ Initially just implement LSGAN on MNIST.
 Then implement a critic.  
 '''
 
-def to_var(x):
-    if torch.cuda.is_available():
-        x = x.cuda()
-    return Variable(x)
 
 def denorm(x):
     out = (x+1)/2
@@ -40,8 +37,8 @@ mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=tran
 data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
 
 
-nz = 128
-ns = 1
+nz = 64
+ns = 8
 
 print "ns", ns
 
@@ -73,15 +70,17 @@ inf_bot = nn.Sequential(
     nn.Tanh())
 
 #(zL->xL) and (zR->xR)
-gen_bot = nn.Sequential(
-    nn.Linear(nz, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 784/ns),
-    nn.Tanh())
+from Gen_Bot import Gen_Bot
+gen_bot = Gen_Bot(batch_size, nz, 256, 784/ns)
+#gen_bot = nn.Sequential(
+#    nn.Linear(nz, 256),
+#    nn.BatchNorm1d(256),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(256, 256),
+#    nn.BatchNorm1d(256),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(256, 784/ns),
+#    nn.Tanh())
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -144,8 +143,15 @@ for epoch in range(200):
             g_loss_bot = ((d_out_bot - boundary_labels)**2).mean()
 
             reconstruction = gen_bot(zs)
+            rec_loss = ((reconstruction - xs)**2).mean()
 
-            g_loss_bot += 0.01 * ((reconstruction - xs)**2).mean()
+            if True:
+                g_loss_bot += rec_loss
+                print "training with reconstruction loss"
+            else:
+                print "training without reconstruction loss"
+            
+            print "reconstruction loss", rec_loss
 
             d_bot.zero_grad()
             d_loss_bot.backward(retain_graph=True)
@@ -165,19 +171,26 @@ for epoch in range(200):
 
         z_top = inf_top(z_bot)
 
+        z_bot_rec = gen_top(z_top)
+
+        reconstruction_loss = ((z_bot - z_bot_rec)**2).mean()
+
         d_out_top = d_top(torch.cat((z_top, z_bot), 1))
 
         d_loss_top = ((d_out_top - real_labels)**2).mean()
         g_loss_top = ((d_out_top - boundary_labels)**2).mean()
+
+        g_loss_top += reconstruction_loss
 
         d_top.zero_grad()
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
 
         inf_top.zero_grad()
-        g_loss_top.backward()
+        gen_top.zero_grad()
+        g_loss_top.backward(retain_graph=True)
         inf_top_optimizer.step()
-
+        gen_top_optimizer.step()
 
         print "epoch", epoch
         #============GENERATION PROCESS========================$
@@ -204,10 +217,10 @@ for epoch in range(200):
 
         gen_x_lst = []
         for seg in range(0,ns):
-            seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-            seg_1 = gen_bot(seg_z)
-            seg_2 = inf_bot(seg_1)
-            seg_x = gen_bot(seg_2)
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz]*1.0 + 0.0*to_var(torch.randn(batch_size, nz))
+            #seg_1 = gen_bot(seg_z)
+            #seg_2 = inf_bot(seg_1)
+            seg_x = gen_bot(seg_z)
 
             gen_x_lst.append(seg_x)
             d_out_bot = d_bot(torch.cat((seg_z, seg_x),1))
@@ -226,7 +239,7 @@ for epoch in range(200):
 
             inf_bot_optimizer.step()
 
-        print d_out_bot
+        #print d_out_bot
 
     fake_images = torch.cat(gen_x_lst, 1)
 
@@ -238,23 +251,18 @@ for epoch in range(200):
     save_image(denorm(real_images.data), './data/%s_real_images.png' %(slurm_name))
 
     
-    z_bot_lst = []
+    #z_bot_lst = []
+    x_bot_lst = []
     for seg in range(0,ns):
         xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
         zs = inf_bot(xs)
-        z_bot_lst.append(zs)
-    z_bot = torch.cat(z_bot_lst, 1)
-    z_top = inf_top(z_bot)
-    z_bot = gen_top(z_top)
-    gen_x_lst = []
-    for seg in range(0,ns):
-        seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-        seg_1 = gen_bot(seg_z)
-        seg_2 = inf_bot(seg_1)
-        seg_x = gen_bot(seg_2)
-        gen_x_lst.append(seg_x)
-    rec_images = torch.cat(gen_x_lst, 1)
+        xr = gen_bot(zs)
+        x_bot_lst.append(xr)
 
-    rec_images = rec_images.view(rec_images.size(0), 1, 28, 28)
-    save_image(denorm(rec_images.data), './data/%s_rec_images.png' %(slurm_name))
+    rec_images_bot = torch.cat(x_bot_lst, 1)
+
+    rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), 1, 28, 28)
+    save_image(denorm(rec_images_bot.data), './data/%s_rec_images_bot.png' %(slurm_name))
+
+
 
