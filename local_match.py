@@ -11,6 +11,7 @@ from torchvision.utils import save_image
 import os
 slurm_name = os.environ["SLURM_JOB_ID"]
 from utils import to_var
+from LayerNorm1d import LayerNorm1d
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -38,7 +39,7 @@ data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, 
 
 
 nz = 64
-ns = 8
+ns = 1
 
 print "ns", ns
 
@@ -50,37 +51,22 @@ d_bot = nn.Sequential(
     nn.LeakyReLU(0.2),
     nn.Linear(256, 1))
 
-#(z,zL,zR)
-d_top = nn.Sequential(
-    nn.Linear(nz*ns + nz, 256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 1))
+from D_Top import D_Top
+d_top = D_Top(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
 inf_bot = nn.Sequential(
     nn.Linear(784/ns, 256),
-    nn.BatchNorm1d(256),
+    LayerNorm1d(256),
     nn.LeakyReLU(0.2),
     nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
+    LayerNorm1d(256),
     nn.LeakyReLU(0.2),
-    nn.Linear(256, nz),
-    nn.Tanh())
+    nn.Linear(256, nz))
 
 #(zL->xL) and (zR->xR)
 from Gen_Bot import Gen_Bot
 gen_bot = Gen_Bot(batch_size, nz, 256, 784/ns)
-#gen_bot = nn.Sequential(
-#    nn.Linear(nz, 256),
-#    nn.BatchNorm1d(256),
-#    nn.LeakyReLU(0.2),
-#    nn.Linear(256, 256),
-#    nn.BatchNorm1d(256),
-#    nn.LeakyReLU(0.2),
-#    nn.Linear(256, 784/ns),
-#    nn.Tanh())
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -90,19 +76,11 @@ inf_top = nn.Sequential(
     nn.Linear(256, 256),
     nn.BatchNorm1d(256),
     nn.LeakyReLU(0.2),
-    nn.Linear(256, nz),
-    nn.Tanh())
+    nn.Linear(256, nz))
 
-#(z -> zL,zR)
-gen_top = nn.Sequential(
-    nn.Linear(nz, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, ns*nz),
-    nn.Tanh())
+
+from Gen_Top import Gen_Top
+gen_top = Gen_Top(batch_size, nz, 256, ns*nz)
 
 models = [d_top, d_bot, inf_bot, gen_bot, inf_top, gen_top]
 
@@ -142,14 +120,16 @@ for epoch in range(200):
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
             g_loss_bot = ((d_out_bot - boundary_labels)**2).mean()
 
+            print "d loss bot inf", d_loss_bot
+
             reconstruction = gen_bot(zs)
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if True:
+            if False:
                 g_loss_bot += rec_loss
                 print "training with reconstruction loss"
             else:
-                print "training without reconstruction loss"
+                print "training without low level reconstruction loss"
             
             print "reconstruction loss", rec_loss
 
@@ -175,12 +155,20 @@ for epoch in range(200):
 
         reconstruction_loss = ((z_bot - z_bot_rec)**2).mean()
 
-        d_out_top = d_top(torch.cat((z_top, z_bot), 1))
+        print "high level rec loss", reconstruction_loss
+
+        d_out_top = d_top(z_top, z_bot)
 
         d_loss_top = ((d_out_top - real_labels)**2).mean()
         g_loss_top = ((d_out_top - boundary_labels)**2).mean()
 
-        g_loss_top += reconstruction_loss
+        print "d loss top inf", d_loss_top
+
+        if False:
+            print "optimizing for high level rec loss"
+            g_loss_top += reconstruction_loss
+        else:
+            print "not optimizing high level rec loss"
 
         d_top.zero_grad()
         d_loss_top.backward(retain_graph=True)
@@ -199,13 +187,15 @@ for epoch in range(200):
 
         z_bot = gen_top(z_top)
 
-        d_out_top = d_top(torch.cat((z_top, z_bot),1))
+        d_out_top = d_top(z_top, z_bot)
 
         d_top.zero_grad()
 
         d_loss_top = ((d_out_top - fake_labels)**2).mean()
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
+
+        print "d loss top gen", d_loss_top
 
         g_loss_bot = ((d_out_top - boundary_labels)**2).mean()
         gen_bot.zero_grad()
@@ -226,6 +216,8 @@ for epoch in range(200):
             d_out_bot = d_bot(torch.cat((seg_z, seg_x),1))
             d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
             
+            print "d loss bot gen", d_loss_bot
+
             d_bot.zero_grad()
             d_loss_bot.backward(retain_graph=True)
             d_bot_optimizer.step()
@@ -263,6 +255,11 @@ for epoch in range(200):
 
     rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), 1, 28, 28)
     save_image(denorm(rec_images_bot.data), './data/%s_rec_images_bot.png' %(slurm_name))
+
+    
+
+
+
 
 
 

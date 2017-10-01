@@ -6,10 +6,10 @@ import numpy as np
 from utils import to_var
 from LayerNorm1d import LayerNorm1d
 
-class Gen_Bot(nn.Module):
+class Gen_Top(nn.Module):
 
     def __init__(self, batch_size, nz, nh, no):
-        super(Gen_Bot, self).__init__()
+        super(Gen_Top, self).__init__()
 
         self.batch_size = batch_size
         self.nz = nz
@@ -20,7 +20,6 @@ class Gen_Bot(nn.Module):
         self.bn2 = LayerNorm1d(nh)
         self.a2 = nn.LeakyReLU(0.2)
         self.l3 = nn.Linear(nh, no)
-        self.a3 = nn.Tanh()
 
     def forward(self, z):
         extra_noise = to_var(torch.randn(self.batch_size, self.nz))
@@ -32,7 +31,6 @@ class Gen_Bot(nn.Module):
         out = self.bn2(out)
         out = self.a2(out)
         out = self.l3(out)
-        out = self.a3(out)
         return out
 
 
