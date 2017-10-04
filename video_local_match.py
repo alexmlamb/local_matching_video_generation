@@ -57,30 +57,9 @@ d_bot = nn.Sequential(
 from D_Top import D_Top
 d_top = D_Top(batch_size, nz*ns, nz, 256)
 
-#(xL->zL) and (xR->zR)
-#inf_bot = nn.Sequential(
-#    nn.Linear(784/ns, 256),
-#    LayerNorm1d(256),
-#    nn.LeakyReLU(0.2),
-#    nn.Linear(256, 256),
-#    LayerNorm1d(256),
-#    nn.LeakyReLU(0.2),
-#    nn.Linear(256, nz))
 
-inf_bot = nn.Sequential(
-    nn.Conv2d(1, 32, kernel_size=5, padding=2, stride=2),
-    nn.BatchNorm2d(32),
-    nn.LeakyReLU(),
-    nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
-    nn.BatchNorm2d(64),
-    nn.LeakyReLU(),
-    nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
-    nn.BatchNorm2d(128),
-    nn.LeakyReLU(),
-    nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
-    nn.BatchNorm2d(256),
-    nn.LeakyReLU(),
-    nn.View(100,-1))
+from Inf_Bot import Inf_Bot
+inf_bot = Inf_Bot(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
 from Gen_Bot import Gen_Bot
@@ -131,11 +110,7 @@ for epoch in range(200):
             xs = xs.view(100,1,64,64)
             zs = inf_bot(xs)
 
-            print zs.size()
-
-            raise Exception('done')
-
-            d_out_bot = d_bot(torch.cat((xs,),1))
+            d_out_bot = d_bot(xs)
 
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
