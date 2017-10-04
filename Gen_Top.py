@@ -11,13 +11,15 @@ class Gen_Top(nn.Module):
     def __init__(self, batch_size, nz, nh, no):
         super(Gen_Top, self).__init__()
 
+        norm = LayerNorm1d
+
         self.batch_size = batch_size
         self.nz = nz
         self.l1 = nn.Linear(nz*2, nh)
-        self.bn1 = LayerNorm1d(nh)
+        self.bn1 = norm(nh)
         self.a1 = nn.LeakyReLU(0.2)
         self.l2 = nn.Linear(nh,nh)
-        self.bn2 = LayerNorm1d(nh)
+        self.bn2 = norm(nh)
         self.a2 = nn.LeakyReLU(0.2)
         self.l3 = nn.Linear(nh, no)
 

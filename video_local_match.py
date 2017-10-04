@@ -14,6 +14,7 @@ from utils import to_var
 from LayerNorm1d import LayerNorm1d
 from gradient_penalty import gradient_penalty
 import random
+import numpy as np
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -32,12 +33,13 @@ real_labels = to_var(torch.ones(batch_size))
 fake_labels = to_var(torch.zeros(batch_size))
 boundary_labels = to_var(0.5 * torch.ones(batch_size))
 
-transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
+#transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
 
-mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
+#mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
 
+#data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
 
-data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
+mnist = np.load('/u/lambalex/Downloads/mnist_test_seq.npy').astype('float32')
 
 nz = 64
 ns = 8
@@ -56,14 +58,29 @@ from D_Top import D_Top
 d_top = D_Top(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
+#inf_bot = nn.Sequential(
+#    nn.Linear(784/ns, 256),
+#    LayerNorm1d(256),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(256, 256),
+#    LayerNorm1d(256),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(256, nz))
+
 inf_bot = nn.Sequential(
-    nn.Linear(784/ns, 256),
-    LayerNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    LayerNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, nz))
+    nn.Conv2d(1, 32, kernel_size=5, padding=2, stride=2),
+    nn.BatchNorm2d(32),
+    nn.LeakyReLU(),
+    nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
+    nn.BatchNorm2d(64),
+    nn.LeakyReLU(),
+    nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
+    nn.BatchNorm2d(128),
+    nn.LeakyReLU(),
+    nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+    nn.BatchNorm2d(256),
+    nn.LeakyReLU(),
+    nn.View(100,-1))
 
 #(zL->xL) and (zR->xR)
 from Gen_Bot import Gen_Bot
@@ -97,23 +114,26 @@ gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
 
 
 for epoch in range(200):
-    for i, (images, _) in enumerate(data_loader):
+    for i in range(0,10000-batch_size):
 
-        #batch_size = images.size(0)
+        images = torch.from_numpy(mnist[:,i:i+batch_size,:,:])
 
         #====
         #Inference Procedure
-
-        #gen_bot, then 
-
         #====
 
-        images = to_var(images.view(batch_size, -1))
+        images = to_var(images)
 
         z_bot_lst = []
         for seg in range(0,ns):
-            xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
+            xs = images[seg]#images[:,seg*(784/ns):(seg+1)*(784/ns)]
+            
+            xs = xs.view(100,1,64,64)
             zs = inf_bot(xs)
+
+            print zs.size()
+
+            raise Exception('done')
 
             d_out_bot = d_bot(torch.cat((xs,),1))
 
