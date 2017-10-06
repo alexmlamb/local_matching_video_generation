@@ -110,6 +110,10 @@ for epoch in range(200):
 
         images = to_var(images.view(batch_size, -1))
 
+        print "images min max", images.min(), images.max()
+
+        raise Exception('done')
+
         z_bot_lst = []
         for seg in range(0,ns):
             xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]

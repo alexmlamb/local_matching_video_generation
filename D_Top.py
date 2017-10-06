@@ -41,7 +41,7 @@ class D_Top(nn.Module):
         out = self.l2(out)
         out = self.a2(out)
         out = self.l3(out)
-        return out
+        return [out]
 
 
 

@@ -40,6 +40,41 @@ class Gen_Bot(nn.Module):
 
 
 
+class Gen_Bot_Conv(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Gen_Bot_Conv, self).__init__()
+
+        norm = LayerNorm1d
+
+        self.batch_size = batch_size
+
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 512*4*4))
+
+        self.l2 = nn.Sequential(
+            nn.UpsamplingBilinear2d(scale_factor=2),
+            nn.Conv2d(512, 256, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.UpsamplingBilinear2d(scale_factor=2),
+            nn.Conv2d(256, 128, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.UpsamplingBilinear2d(scale_factor=2),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            #nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+            nn.UpsamplingBilinear2d(scale_factor=2),
+            nn.Conv2d(64, 1, kernel_size=5, padding=2, stride=1),
+            nn.Tanh())
+
+    def forward(self, z):
+        out = self.l1(z)
+        out = out.view(100,512,4,4)
+        out = self.l2(out)
+        return out
+
 
 
 
