@@ -48,9 +48,10 @@ class Gen_Bot_Conv(nn.Module):
         norm = LayerNorm1d
 
         self.batch_size = batch_size
+        self.nz = nz
 
         self.l1 = nn.Sequential(
-            nn.Linear(nz, 512*4*4))
+            nn.Linear(nz*2, 512*4*4))
 
         self.l2 = nn.Sequential(
             nn.UpsamplingBilinear2d(scale_factor=2),
@@ -70,7 +71,8 @@ class Gen_Bot_Conv(nn.Module):
             nn.Tanh())
 
     def forward(self, z):
-        out = self.l1(z)
+        z_extra = to_var(torch.randn(self.batch_size, self.nz))
+        out = self.l1(torch.cat((z,z_extra), 1))
         out = out.view(100,512,4,4)
         out = self.l2(out)
         return out

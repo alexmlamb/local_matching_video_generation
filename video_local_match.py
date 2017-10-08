@@ -50,7 +50,7 @@ from D_Top import D_Top
 d_top = D_Top(batch_size, nz*ns, nz, 256)
 
 from D_Bot import D_Bot
-d_bot = D_Bot(batch_size)
+d_bot = D_Bot(batch_size, nz)
 
 from Inf_Bot import Inf_Bot
 inf_bot = Inf_Bot(batch_size, nz)
@@ -78,15 +78,15 @@ if torch.cuda.is_available():
     for model in models: 
         model.cuda()
 
-d_top_optimizer = torch.optim.RMSprop(d_top.parameters(), lr=0.0003)
-d_bot_optimizer = torch.optim.RMSprop(d_bot.parameters(), lr=0.0003)
-inf_bot_optimizer = torch.optim.RMSprop(inf_bot.parameters(), lr=0.0003)
-gen_bot_optimizer = torch.optim.RMSprop(gen_bot.parameters(), lr=0.0003)
-inf_top_optimizer = torch.optim.RMSprop(inf_top.parameters(), lr=0.0003)
-gen_top_optimizer = torch.optim.RMSprop(gen_top.parameters(), lr=0.0003)
+d_top_optimizer = torch.optim.RMSprop(d_top.parameters(), lr=0.0001)
+d_bot_optimizer = torch.optim.RMSprop(d_bot.parameters(), lr=0.0001)
+inf_bot_optimizer = torch.optim.RMSprop(inf_bot.parameters(), lr=0.0001)
+gen_bot_optimizer = torch.optim.RMSprop(gen_bot.parameters(), lr=0.0001)
+inf_top_optimizer = torch.optim.RMSprop(inf_top.parameters(), lr=0.0001)
+gen_top_optimizer = torch.optim.RMSprop(gen_top.parameters(), lr=0.0001)
 
 
-for epoch in range(1000):
+for epoch in range(5000):
     for i in range(0,1000-batch_size,batch_size):
 
         images = imgnorm(torch.from_numpy(mnist[:,i:i+batch_size,:,:]))
@@ -104,39 +104,42 @@ for epoch in range(1000):
             
             xs = xs.view(100,1,64,64)
             zs = inf_bot(xs)
-
-            d_out_bot = d_bot(xs)
-
-            d_loss_bot = ls_loss(d_out_bot, 1)#((d_out_bot - real_labels)**2).mean()
-            g_loss_bot = ls_loss(d_out_bot, 0.5)#1.0 * ((d_out_bot - boundary_labels)**2).mean()
-
-            print "d loss bot inf", d_loss_bot
-
             reconstruction = gen_bot(zs)
-            
+
+            d_out_bot = d_bot(xs, zs)
+
+            g_loss_bot = ls_loss(d_out_bot, 0.0)
+
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if False:
-                g_loss_bot += rec_loss
+            if True:
+                g_loss_bot += 0.1 * rec_loss
                 print "training with reconstruction loss"
             else:
                 print "training without low level reconstruction loss"
-            
-            #print "reconstruction loss low level", rec_loss
-
-            d_bot.zero_grad()
-            d_loss_bot.backward(retain_graph=True)
-            d_bot_optimizer.step()
 
             gen_bot.zero_grad()
             inf_bot.zero_grad()
             d_bot.zero_grad()
-            g_loss_bot.backward()
-            
+            g_loss_bot.backward(retain_graph=True)
             gen_bot_optimizer.step()
             inf_bot_optimizer.step()
 
+            xsi = Variable(xs.data, requires_grad=True)
+            zsi = Variable(zs.data, requires_grad=True)
+
+            d_out_bot = d_bot(xsi, zsi)
+
+            print "no gradient penalty"
+            d_loss_bot = ls_loss(d_out_bot, 1) + 0.1 * gradient_penalty(d_out_bot, xsi)# + gradient_penalty(d_out_bot, zsi)
+
+            d_bot.zero_grad()
+            d_loss_bot.backward(retain_graph=True)
+            d_bot_optimizer.step()
             z_bot_lst.append(zs)
+
+
+
 
         z_bot = torch.cat(z_bot_lst, 1)
 
@@ -172,6 +175,7 @@ for epoch in range(1000):
         inf_top.zero_grad()
         gen_top.zero_grad()
         d_top.zero_grad()
+
         g_loss_top.backward()
         inf_top_optimizer.step()
         gen_top_optimizer.step()
@@ -187,14 +191,13 @@ for epoch in range(1000):
 
         d_top.zero_grad()
 
-        d_loss_top = ls_loss(d_out_top, 0)#((d_out_top - fake_labels)**2).mean()
-        
+        d_loss_top = ls_loss(d_out_top, 0)
+
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
 
-        #print "d loss top gen", d_loss_top
+        g_loss_top = ls_loss(d_out_top, 1.0)
 
-        g_loss_top = ls_loss(d_out_top, 0.5)#0.0 * ((d_out_top - boundary_labels)**2).mean()
         gen_top.zero_grad()
         d_top.zero_grad()
         g_loss_top.backward()
@@ -208,7 +211,7 @@ for epoch in range(1000):
             seg_x = gen_bot(seg_z)
 
             gen_x_lst.append(seg_x)
-            d_out_bot = d_bot(seg_x)
+            d_out_bot = d_bot(seg_x, seg_z)
             d_loss_bot = ls_loss(d_out_bot, 0)#((d_out_bot - fake_labels)**2).mean()
             
             print "d loss bot gen", d_loss_bot
@@ -252,8 +255,6 @@ for epoch in range(1000):
 
         save_image(denorm(xr.data), './data/%s_rec_images_bot_%i.png' %(slurm_name, seg))
 
-    continue
-
     z_bot = torch.cat(z_bot_lst, 1)
     z_top = inf_top(z_bot)
     z_bot = gen_top(z_top)
@@ -265,7 +266,6 @@ for epoch in range(1000):
 
     rec_images_top = torch.cat(gen_x_lst, 1)
 
-    rec_images_top = rec_images_top.view(rec_images_top.size(0), 1, 28, 28)
     save_image(denorm(rec_images_top.data), './data/%s_rec_images_top.png' %(slurm_name))
 
 

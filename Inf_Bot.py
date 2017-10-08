@@ -16,23 +16,21 @@ class Inf_Bot(nn.Module):
         self.batch_size = batch_size
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(32),
-            nn.LeakyReLU(),
-            nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(64),
+            nn.Conv2d(1, 64, kernel_size=5, padding=2, stride=2),
+            #nn.BatchNorm2d(32),
             nn.LeakyReLU(),
             nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(128),
+            #nn.BatchNorm2d(64),
             nn.LeakyReLU(),
             nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
             nn.BatchNorm2d(256),
+            nn.LeakyReLU(),
+            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(512),
             nn.LeakyReLU())
 
         self.l2 = nn.Sequential(
-            nn.Linear(256*4*4, 512),
-            nn.LeakyReLU(),
-            nn.Linear(512,nz))
+            nn.Linear(512*4*4, nz))
 
     def forward(self, z):
         out = self.l1(z)
