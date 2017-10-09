@@ -22,8 +22,28 @@ def ls_loss(lst, target):
         else:
             raise Exception()
 
-        loss += ((v - t)**2).mean()
+        l = ((v - t)**2)
+
+        if len(l.size()) == 2:
+            l = l.mean(1)
+        elif len(l.size()) == 4:
+            l = l.mean(1).mean(1).mean(1)
+
+        print l.size()
+
+        loss += l
 
     return loss
 
+#def orig_loss(lst, target):
+
+#    loss = 0.0
+
+#    for v in lst:
+#        if target == 1:
+#            loss += 
+#        elif target == 0:
+#            loss += 
+#        else:
+#            raise Exception()
 

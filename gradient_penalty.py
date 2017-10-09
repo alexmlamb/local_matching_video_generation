@@ -5,9 +5,9 @@ from torch.autograd import Variable, grad
 
 def gradient_penalty(out, inp):
     
-    gradients = grad(outputs = inp.norm(2), inputs = inp, create_graph=True, retain_graph=True, only_inputs=True)[0]
+    gradients = grad(outputs = out.sum(), inputs = inp, create_graph=True, retain_graph=True, only_inputs=True)[0]
 
-    pen = ((gradients.norm(2, dim=1) - 1)**2).mean() * 0.1
+    pen = ((gradients.norm(2, dim=1))**2).mean()
 
     return pen
 

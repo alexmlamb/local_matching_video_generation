@@ -16,6 +16,7 @@ from gradient_penalty import gradient_penalty
 import random
 import numpy as np
 from gan_loss import ls_loss
+import math
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -34,6 +35,13 @@ def imgnorm(x):
 
 batch_size = 100
 
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        m.weight.data.normal_(0, 0.02)
+    elif isinstance(m, nn.BatchNorm2d):
+        m.weight.data.normal_(1.0, 0.02)
+        m.bias.data.fill_(0)
+
 
 #transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
 
@@ -51,6 +59,9 @@ d_top = D_Top(batch_size, nz*ns, nz, 256)
 
 from D_Bot import D_Bot
 d_bot = D_Bot(batch_size, nz)
+d_bot.apply(weights_init)
+
+print "d bot", d_bot
 
 from Inf_Bot import Inf_Bot
 inf_bot = Inf_Bot(batch_size, nz)
@@ -58,6 +69,9 @@ inf_bot = Inf_Bot(batch_size, nz)
 #(zL->xL) and (zR->xR)
 from Gen_Bot import Gen_Bot_Conv
 gen_bot = Gen_Bot_Conv(batch_size, nz)
+gen_bot.apply(weights_init)
+
+print "gen bot", gen_bot
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -78,10 +92,14 @@ if torch.cuda.is_available():
     for model in models: 
         model.cuda()
 
+lr = 0.00001
+
+print "lr", lr
+
 d_top_optimizer = torch.optim.RMSprop(d_top.parameters(), lr=0.0001)
-d_bot_optimizer = torch.optim.RMSprop(d_bot.parameters(), lr=0.0001)
+d_bot_optimizer = torch.optim.RMSprop(d_bot.parameters(), lr=lr)
 inf_bot_optimizer = torch.optim.RMSprop(inf_bot.parameters(), lr=0.0001)
-gen_bot_optimizer = torch.optim.RMSprop(gen_bot.parameters(), lr=0.0001)
+gen_bot_optimizer = torch.optim.RMSprop(gen_bot.parameters(), lr=lr)
 inf_top_optimizer = torch.optim.RMSprop(inf_top.parameters(), lr=0.0001)
 gen_top_optimizer = torch.optim.RMSprop(gen_top.parameters(), lr=0.0001)
 
@@ -90,6 +108,33 @@ for epoch in range(5000):
     for i in range(0,1000-batch_size,batch_size):
 
         images = imgnorm(torch.from_numpy(mnist[:,i:i+batch_size,:,:]))
+
+        #============GENERATION PROCESS========================$
+
+        z_top = to_var(torch.randn(batch_size, nz))
+
+        z_bot = gen_top(z_top)
+
+        d_out_top = d_top(z_bot)
+
+        d_top.zero_grad()
+
+        d_loss_top = ls_loss(d_out_top, 0).mean()
+
+        d_loss_top.backward(retain_graph=True)
+        d_top_optimizer.step()
+
+        g_loss_top = ls_loss(d_out_top, 1.0).mean()
+
+        gen_top.zero_grad()
+        d_top.zero_grad()
+        g_loss_top.backward()
+        gen_top_optimizer.step()
+
+        z_bot = Variable(z_bot.data)
+
+        gen_x_lst = []
+
 
         #====
         #Inference Procedure
@@ -100,6 +145,9 @@ for epoch in range(5000):
 
         z_bot_lst = []
         for seg in range(0,ns):
+
+            #====================================Low level inference and reconstruction=======================
+
             xs = images[seg]#images[:,seg*(784/ns):(seg+1)*(784/ns)]
             
             xs = xs.view(100,1,64,64)
@@ -108,11 +156,11 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xs, zs)
 
-            g_loss_bot = ls_loss(d_out_bot, 0.0)
+            g_loss_bot = ls_loss(d_out_bot, 0.0).mean()
 
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if True:
+            if False:
                 g_loss_bot += 0.1 * rec_loss
                 print "training with reconstruction loss"
             else:
@@ -130,14 +178,40 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xsi, zsi)
 
-            print "no gradient penalty"
-            d_loss_bot = ls_loss(d_out_bot, 1) + 0.1 * gradient_penalty(d_out_bot, xsi)# + gradient_penalty(d_out_bot, zsi)
+            d_loss_bot = ls_loss(d_out_bot[1:], 1).mean() + ((1 - d_out_bot[0:1])**2 * gradient_penalty(d_out_bot[0], xsi)).mean() + ls_loss(d_out_bot[0:1], 1).mean()
 
             d_bot.zero_grad()
-            d_loss_bot.backward(retain_graph=True)
+            d_loss_bot.backward()
             d_bot_optimizer.step()
+
             z_bot_lst.append(zs)
 
+
+            #============================Low level generation==================================================
+
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 0.0 + to_var(torch.randn(batch_size, nz))
+            seg_x = gen_bot(seg_z)
+            gen_x_lst.append(seg_x)
+
+            d_out_bot = d_bot(seg_x, seg_z)
+
+            g_loss_bot = ls_loss(d_out_bot, 1).mean()
+
+            gen_bot.zero_grad()
+            d_bot.zero_grad()
+            g_loss_bot.backward(retain_graph=True)
+            gen_bot_optimizer.step()
+
+            xsi = Variable(seg_x.data, requires_grad=True)
+            zsi = Variable(seg_z.data, requires_grad=True)
+
+            d_out_bot = d_bot(xsi,zsi)
+
+            d_loss_bot = ls_loss(d_out_bot, 0).mean()
+
+            d_bot.zero_grad()
+            d_loss_bot.backward()
+            d_bot_optimizer.step()
 
 
 
@@ -155,8 +229,8 @@ for epoch in range(5000):
 
         d_out_top = d_top(z_bot)
 
-        d_loss_top = ls_loss(d_out_top, 1)#((d_out_top - real_labels)**2).mean()
-        g_loss_top = ls_loss(d_out_top, 0.5)#((d_out_top - boundary_labels)**2).mean()
+        d_loss_top = ls_loss(d_out_top, 1).mean()#((d_out_top - real_labels)**2).mean()
+        g_loss_top = ls_loss(d_out_top, 0.5).mean()#((d_out_top - boundary_labels)**2).mean()
 
         #print "d loss top inf", d_loss_top
 
@@ -181,61 +255,14 @@ for epoch in range(5000):
         gen_top_optimizer.step()
 
         print "epoch", epoch
-        #============GENERATION PROCESS========================$
 
-        z_top = to_var(torch.randn(batch_size, nz))
-
-        z_bot = gen_top(z_top)
-
-        d_out_top = d_top(z_bot)
-
-        d_top.zero_grad()
-
-        d_loss_top = ls_loss(d_out_top, 0)
-
-        d_loss_top.backward(retain_graph=True)
-        d_top_optimizer.step()
-
-        g_loss_top = ls_loss(d_out_top, 1.0)
-
-        gen_top.zero_grad()
-        d_top.zero_grad()
-        g_loss_top.backward()
-        gen_top_optimizer.step()
-
-        z_bot = Variable(z_bot.data)
-
-        gen_x_lst = []
-        for seg in range(0,ns):
-            seg_z = z_bot[:,seg*nz:(seg+1)*nz]*0.0 + 1.0*to_var(torch.randn(batch_size, nz))
-            seg_x = gen_bot(seg_z)
-
-            gen_x_lst.append(seg_x)
-            d_out_bot = d_bot(seg_x, seg_z)
-            d_loss_bot = ls_loss(d_out_bot, 0)#((d_out_bot - fake_labels)**2).mean()
-            
-            print "d loss bot gen", d_loss_bot
-
-            d_bot.zero_grad()
-            d_loss_bot.backward(retain_graph=True)
-            d_bot_optimizer.step()
-
-            #print "train with less g loss bot"
-            g_loss_bot = ls_loss(d_out_bot, 0.5)#1.0 * ((d_out_bot - boundary_labels)**2).mean()
-            gen_bot.zero_grad()
-            d_bot.zero_grad()
-            g_loss_bot.backward()
-            gen_bot_optimizer.step()
-
-        #print d_out_bot
-
-    #fake_images = torch.cat(gen_x_lst, 1)
 
     print "len genx list", len(gen_x_lst)
 
     for seg in range(0, ns):
         fake_images = gen_x_lst[seg]
-        print "fake images min max", fake_images.min(), fake_images.max()
+        #print "fake images min max", fake_images.min(), fake_images.max()
+        print "fake images shape", fake_images.size()
         save_image(denorm(fake_images.data), './data/%s_fake_images_%i.png' %(slurm_name, seg))
 
     
