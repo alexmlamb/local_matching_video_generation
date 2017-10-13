@@ -1,5 +1,6 @@
 import torch
 from utils import to_var
+#from gradient_penalty import gradient_penalty
 
 batch_size = 100
 
@@ -22,28 +23,45 @@ def ls_loss(lst, target):
         else:
             raise Exception()
 
-        l = ((v - t)**2)
-
-        if len(l.size()) == 2:
-            l = l.mean(1)
-        elif len(l.size()) == 4:
-            l = l.mean(1).mean(1).mean(1)
-
-        print l.size()
+        l = ((v - t)**2).mean()
 
         loss += l
 
     return loss
 
-#def orig_loss(lst, target):
+'''
+def reg_loss(lst, gd, rf, inp = None):
 
-#    loss = 0.0
+    assert len(lst) == 0
 
-#    for v in lst:
-#        if target == 1:
-#            loss += 
-#        elif target == 0:
-#            loss += 
-#        else:
-#            raise Exception()
+    p = lst[0]
+
+    loss = 0.0
+
+    if gd == "d":
+        assert inp is not None
+        gp = gradient_penalty(p.sum(), inp)
+        if rf == "r":
+            pass
+        elif rf == "f":
+            pass
+        else:
+            raise Exception()
+    elif gd == "g":
+            pass
+        if rf == "r":
+            pass
+        elif rf == "f":
+            pass
+        else:
+            raise Exception()
+    else:
+        raise Exception()
+'''
+
+
+
+
+
+
 

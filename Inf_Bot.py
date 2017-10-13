@@ -18,16 +18,16 @@ class Inf_Bot(nn.Module):
         self.l1 = nn.Sequential(
             nn.Conv2d(1, 64, kernel_size=5, padding=2, stride=2),
             #nn.BatchNorm2d(32),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(0.2),
             nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
             #nn.BatchNorm2d(64),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(0.2),
             nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
             nn.BatchNorm2d(256),
-            nn.LeakyReLU(),
+            nn.LeakyReLU(0.2),
             nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
             nn.BatchNorm2d(512),
-            nn.LeakyReLU())
+            nn.LeakyReLU(0.2))
 
         self.l2 = nn.Sequential(
             nn.Linear(512*4*4, nz))

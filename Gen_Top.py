@@ -15,6 +15,7 @@ class Gen_Top(nn.Module):
 
         self.batch_size = batch_size
         self.nz = nz
+        self.no = no
         self.l1 = nn.Linear(nz*2, nh)
         self.bn1 = norm(nh)
         self.a1 = nn.LeakyReLU(0.2)
@@ -22,6 +23,10 @@ class Gen_Top(nn.Module):
         self.bn2 = norm(nh)
         self.a2 = nn.LeakyReLU(0.2)
         self.l3 = nn.Linear(nh, no)
+        self.l3_sigma = nn.Linear(nh, no)
+
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
 
     def forward(self, z):
         extra_noise = to_var(torch.randn(self.batch_size, self.nz))
@@ -32,10 +37,14 @@ class Gen_Top(nn.Module):
         out = self.l2(out)
         out = self.bn2(out)
         out = self.a2(out)
-        out = self.l3(out)
-        return out
 
+        out_mu = self.l3(out)
 
+        zo = to_var(torch.randn(self.batch_size, self.no))
+
+        out_final = self.tanh(out_mu)*1.0# + zo * self.sigmoid(self.l3_sigma(out))
+
+        return out_final
 
 
 

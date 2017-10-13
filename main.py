@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import sys
+sys.path.insert(0, '/u/lambalex/.local/lib/python2.7/site-packages/torch-0.2.0+4af66c4-py2.7-linux-x86_64.egg')
 import torch
 import torchvision
 import torch.nn as nn
@@ -35,40 +37,33 @@ data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=100, shuffle
 #Discriminator
 D = nn.Sequential(
     nn.Linear(784, 256),
-    nn.LeakyReLU(0.2),
+    nn.LeakyReLU(0.0),
     nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
+    #nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.0),
+    nn.Linear(256, 256),
+    #nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.0),
     nn.Linear(256, 1))
 
-#Critic
-C = nn.Sequential(
-    nn.Linear(784, 256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 1))
 
 # Generator 
 G = nn.Sequential(
     nn.Linear(64, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
+    #nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.0),
     nn.Linear(256, 256),
-    nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
+    #nn.BatchNorm1d(256),
+    nn.LeakyReLU(0.0),
     nn.Linear(256, 784),
     nn.Tanh())
 
 if torch.cuda.is_available():
     D.cuda()
-    C.cuda()
     G.cuda()
 
 d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0003)
 g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0003)
-c_optimizer = torch.optim.Adam(C.parameters(), lr=0.0003)
 
 for epoch in range(200):
     for i, (images, _) in enumerate(data_loader):
@@ -97,41 +92,18 @@ for epoch in range(200):
         d_loss.backward()
         d_optimizer.step()
 
-        #z = to_var(torch.randn(batch_size, 64))
-        #fake_images = G(z)
-        for k in range(0,1):
-            outputs_critic = C(to_var(fake_images.data))
-            c_loss = (torch.abs(outputs_critic - to_var(fake_score.data))).mean()
-
-            C.zero_grad()
-            c_loss.backward()
-            c_optimizer.step()
-
-            outputs_critic = C(to_var(images.data))
-            c_loss = (torch.abs(outputs_critic - to_var(real_score.data))).mean()
-
-            C.zero_grad()
-            c_loss.backward()
-            c_optimizer.step()
-
-
-            print "c loss", k, c_loss
 
         print "fake scores D", fake_score[0:10]
         print "real scores D", real_score[0:10]
-        print "fake scores C", outputs_critic[0:10]
         print "epoch", epoch
         #============TRAIN GENERATOR========================$
 
         z = to_var(torch.randn(batch_size, 64))
         fake_images = G(z)
 
-        if epoch > 100:
-            outputs = C(fake_images)
-        else:
-            outputs = D(fake_images)
+        outputs = D(fake_images)
         g_loss = ((outputs - boundary_labels)**2).mean()
-        
+     
         D.zero_grad()
         G.zero_grad()
         g_loss.backward()

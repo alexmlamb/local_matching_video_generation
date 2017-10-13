@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import sys
+sys.path.insert(0, '/u/lambalex/.local/lib/python2.7/site-packages/torch-0.2.0+4af66c4-py2.7-linux-x86_64.egg')
 import torch
 import torchvision
 import torch.nn as nn
@@ -6,13 +8,14 @@ import numpy as np
 import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-from torch.autograd import Variable, grad
+from torch.autograd import Variable
+from torch.autograd import grad
 from torchvision.utils import save_image
 import os
 slurm_name = os.environ["SLURM_JOB_ID"]
 from utils import to_var
 from LayerNorm1d import LayerNorm1d
-from gradient_penalty import gradient_penalty
+#from gradient_penalty import gradient_penalty
 import random
 import numpy as np
 from gan_loss import ls_loss
@@ -52,7 +55,7 @@ def weights_init(m):
 mnist = np.load('/u/lambalex/Downloads/mnist_test_seq.npy').astype('float32')
 
 nz = 64
-ns = 1 #20
+ns = 4 #20
 
 from D_Top import D_Top
 d_top = D_Top(batch_size, nz*ns, nz, 256)
@@ -156,11 +159,12 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xs, zs)
 
-            g_loss_bot = ls_loss(d_out_bot, 0.0).mean()
+            g_loss_bot = ls_loss(d_out_bot, 0.5)
+            #g_loss_bot = reg_loss(d_out_bot, 'g', "r")
 
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if False:
+            if True:
                 g_loss_bot += 0.1 * rec_loss
                 print "training with reconstruction loss"
             else:
@@ -178,7 +182,8 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xsi, zsi)
 
-            d_loss_bot = ls_loss(d_out_bot[1:], 1).mean() + ((1 - d_out_bot[0:1])**2 * gradient_penalty(d_out_bot[0], xsi)).mean() + ls_loss(d_out_bot[0:1], 1).mean()
+            #d_loss_bot = reg_loss(d_out_bot, "d", "r", xsi)
+            d_loss_bot = ls_loss(d_out_bot, 1.0)
 
             d_bot.zero_grad()
             d_loss_bot.backward()
@@ -189,13 +194,14 @@ for epoch in range(5000):
 
             #============================Low level generation==================================================
 
-            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 0.0 + to_var(torch.randn(batch_size, nz))
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 0.0 + 1.0 * to_var(torch.randn(batch_size, nz))
             seg_x = gen_bot(seg_z)
             gen_x_lst.append(seg_x)
 
             d_out_bot = d_bot(seg_x, seg_z)
 
-            g_loss_bot = ls_loss(d_out_bot, 1).mean()
+            g_loss_bot = ls_loss(d_out_bot, 0.5)
+            #g_loss_bot = reg_loss(d_out_bot, "g", "f")
 
             gen_bot.zero_grad()
             d_bot.zero_grad()
@@ -207,13 +213,12 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xsi,zsi)
 
-            d_loss_bot = ls_loss(d_out_bot, 0).mean()
+            d_loss_bot = ls_loss(d_out_bot, 0.0)
+            #d_loss_bot = reg_loss(d_out_bot, "d", "f", xsi)
 
             d_bot.zero_grad()
             d_loss_bot.backward()
             d_bot_optimizer.step()
-
-
 
         z_bot = torch.cat(z_bot_lst, 1)
 
@@ -236,9 +241,9 @@ for epoch in range(5000):
 
         #d_loss_top += 0.1 * gradient_penalty(d_out_top.norm(2), z_bot)
 
-        if False:
+        if True:
             print "optimizing for high level rec loss"
-            g_loss_top += reconstruction_loss
+            g_loss_top += 0.1 * reconstruction_loss
         else:
             print "not optimizing high level rec loss"
 
@@ -282,18 +287,16 @@ for epoch in range(5000):
 
         save_image(denorm(xr.data), './data/%s_rec_images_bot_%i.png' %(slurm_name, seg))
 
-    z_bot = torch.cat(z_bot_lst, 1)
-    z_top = inf_top(z_bot)
+    z_top = to_var(torch.randn(batch_size, nz))
     z_bot = gen_top(z_top)
 
-    gen_x_lst = []
     for seg in range(0,ns):
         seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-        gen_x_lst.append(gen_bot(seg_z))
+        xg = gen_bot(seg_z)
 
-    rec_images_top = torch.cat(gen_x_lst, 1)
+        save_image(denorm(xg.data), './data/%s_sample_gen_%i.png' %(slurm_name, seg))
 
-    save_image(denorm(rec_images_top.data), './data/%s_rec_images_top.png' %(slurm_name))
+
 
 
 
