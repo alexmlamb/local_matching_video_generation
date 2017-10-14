@@ -13,6 +13,8 @@ from torchvision.utils import save_image
 import os
 slurm_name = os.environ["SLURM_JOB_ID"]
 
+from reg_loss import gan_loss
+
 '''
 Initially just implement LSGAN on MNIST.  
 
@@ -22,7 +24,7 @@ Then implement a critic.
 def to_var(x):
     if torch.cuda.is_available():
         x = x.cuda()
-    return Variable(x)
+    return Variable(x, requires_grad=True)
 
 def denorm(x):
     out = (x+1)/2
@@ -34,28 +36,28 @@ mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=tran
 
 data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=100, shuffle=True)
 
+
 #Discriminator
 D = nn.Sequential(
-    nn.Linear(784, 256),
-    nn.LeakyReLU(0.0),
-    nn.Linear(256, 256),
+    nn.Linear(784, 20),
+    nn.Tanh(),
+    nn.Linear(20, 20),
     #nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.0),
-    nn.Linear(256, 256),
+    nn.Tanh(),
+    nn.Linear(20, 20),
     #nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.0),
-    nn.Linear(256, 1))
-
+    nn.Tanh(),
+    nn.Linear(20, 1))
 
 # Generator 
 G = nn.Sequential(
-    nn.Linear(64, 256),
+    nn.Linear(64, 20),
     #nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.0),
-    nn.Linear(256, 256),
+    nn.Tanh(),
+    nn.Linear(20, 20),
     #nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.0),
-    nn.Linear(256, 784),
+    nn.Tanh(),
+    nn.Linear(20, 784),
     nn.Tanh())
 
 if torch.cuda.is_available():
@@ -76,14 +78,21 @@ for epoch in range(200):
         fake_labels = to_var(torch.zeros(batch_size))
         boundary_labels = to_var(0.5 * torch.ones(batch_size))
 
+        print "yes penalty"
+
         outputs = D(images)
-        d_loss_real = ((outputs - real_labels)**2).mean()
+        #d_loss_real = ((outputs - real_labels)**2).mean()
+        d_loss_real = gan_loss(pre_sig=outputs, real=True, D=True, use_penalty=True,grad_inp=images)
+
         real_score = outputs
 
         z = to_var(torch.randn(batch_size, 64))
         fake_images = G(z)
         outputs = D(fake_images)
-        d_loss_fake = ((outputs - fake_labels)**2).mean()
+
+        #d_loss_fake = ((outputs - fake_labels)**2).mean()
+        d_loss_fake = gan_loss(pre_sig=outputs, real=False, D=True, use_penalty=True,grad_inp=fake_images)
+
         fake_score = outputs
 
         d_loss = d_loss_real + d_loss_fake
@@ -102,8 +111,10 @@ for epoch in range(200):
         fake_images = G(z)
 
         outputs = D(fake_images)
-        g_loss = ((outputs - boundary_labels)**2).mean()
+        #g_loss = ((outputs - boundary_labels)**2).mean()
      
+        g_loss = gan_loss(pre_sig=outputs, real=False, D=False, use_penalty=False,grad_inp=None)
+
         D.zero_grad()
         G.zero_grad()
         g_loss.backward()
