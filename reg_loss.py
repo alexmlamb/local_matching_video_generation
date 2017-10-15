@@ -8,7 +8,7 @@ import torch
 from torch.autograd import grad, Variable
 import numpy as np
 
-def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None):
+def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
 
     p = torch.sigmoid(pre_sig)
 
@@ -16,11 +16,17 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None):
         gv = grad(outputs=pre_sig.sum(),inputs=grad_inp,create_graph=True,retain_graph=True)[0]**2
         #print "gv", gv
         if len(gv.size()) == 4:
-            gv = gv.sum(dim=(1,2,3))
+            gv = gv.sum(1).sum(1).sum(1)
         elif len(gv.size()) == 2:
             gv = gv.sum(dim=1)
         else:
             raise Exception('invalid shape')
+
+        if len(p.size()) == 4:
+            p = p.mean(1).mean(1).mean(1)
+
+        print "gv shape", gv.size()
+        print "p shape", p.size()
 
     if real == True and D == True:
         cl = -torch.log(p).mean()
@@ -33,7 +39,7 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None):
         print "penalty", penalty
         print "cl", cl
 
-        loss = cl + penalty
+        loss = cl + penalty*gamma
     elif real == False and D == True:
         cl = -torch.log(1-p).mean()
 
@@ -45,16 +51,29 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None):
         print "penalty", penalty
         print "cl", cl
 
-        loss = cl + penalty
+        loss = cl + penalty*gamma
     elif real == True and D == False:
         assert grad_inp is None
+        assert use_penalty == False
 
         loss = -torch.log(1-p).mean()
 
     elif real == False and D == False:
         assert grad_inp is None
+        assert use_penalty == False
         
         loss = -torch.log(p).mean()
+
+    return loss
+
+
+def gan_loss_multi(pre_sig_lst, real, D, use_penalty,grad_inp=None,gamma=1.0):
+
+
+    loss = 0.0
+
+    for pre_sig in pre_sig_lst:
+        loss += gan_loss(pre_sig, real, D, use_penalty,grad_inp,gamma)
 
     return loss
 

@@ -19,6 +19,7 @@ from LayerNorm1d import LayerNorm1d
 import random
 import numpy as np
 from gan_loss import ls_loss
+from reg_loss import gan_loss_multi
 import math
 
 '''
@@ -159,12 +160,11 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xs, zs)
 
-            g_loss_bot = ls_loss(d_out_bot, 0.5)
-            #g_loss_bot = reg_loss(d_out_bot, 'g', "r")
+            g_loss_bot = gan_loss_multi(pre_sig_lst=d_out_bot, real=True, D=False, use_penalty=False,grad_inp=None)
 
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if True:
+            if False:
                 g_loss_bot += 0.1 * rec_loss
                 print "training with reconstruction loss"
             else:
@@ -183,7 +183,7 @@ for epoch in range(5000):
             d_out_bot = d_bot(xsi, zsi)
 
             #d_loss_bot = reg_loss(d_out_bot, "d", "r", xsi)
-            d_loss_bot = ls_loss(d_out_bot, 1.0)
+            d_loss_bot = gan_loss_multi(pre_sig_lst=d_out_bot, real=True, D=True, use_penalty=True,grad_inp=xsi,gamma=1.0)
 
             d_bot.zero_grad()
             d_loss_bot.backward()
@@ -194,7 +194,7 @@ for epoch in range(5000):
 
             #============================Low level generation==================================================
 
-            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 0.0 + 1.0 * to_var(torch.randn(batch_size, nz))
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 1.0 + 0.0 * to_var(torch.randn(batch_size, nz))
             seg_x = gen_bot(seg_z)
             gen_x_lst.append(seg_x)
 
@@ -213,7 +213,8 @@ for epoch in range(5000):
 
             d_out_bot = d_bot(xsi,zsi)
 
-            d_loss_bot = ls_loss(d_out_bot, 0.0)
+            #d_loss_bot = ls_loss(d_out_bot, 0.0)
+            d_loss_bot = gan_loss_multi(pre_sig_lst=d_out_bot, real=False, D=True, use_penalty=True,grad_inp=xsi,gamma=1.0)
             #d_loss_bot = reg_loss(d_out_bot, "d", "f", xsi)
 
             d_bot.zero_grad()

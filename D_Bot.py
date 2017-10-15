@@ -71,7 +71,6 @@ class D_Bot(nn.Module):
         y4 = self.o4(h4)
         y5 = self.o5(h5)
 
-        return [y3,y4,y5]
-
+        return [y2,y3,y4,y5]
 
 
