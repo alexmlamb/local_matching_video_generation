@@ -112,8 +112,6 @@ for epoch in range(200):
 
         print "images min max", images.min(), images.max()
 
-        raise Exception('done')
-
         z_bot_lst = []
         for seg in range(0,ns):
             xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
@@ -164,10 +162,13 @@ for epoch in range(200):
 
         print "high level rec loss", reconstruction_loss
 
-        d_out_top = d_top(z_bot)
+        d_out_tops = d_top(z_bot)
 
-        d_loss_top = ((d_out_top - real_labels)**2).mean()
-        g_loss_top = ((d_out_top - boundary_labels)**2).mean()
+        d_loss_top = 0
+        g_loss_top = 0
+        for d_out_top in d_out_tops:
+            d_loss_top += ((d_out_top - real_labels)**2).mean()
+            g_loss_top += ((d_out_top - boundary_labels)**2).mean()
 
         print "d loss top inf", d_loss_top
 
@@ -201,14 +202,19 @@ for epoch in range(200):
 
         d_top.zero_grad()
 
-        d_loss_top = ((d_out_top - fake_labels)**2).mean()
-        
+        d_loss_top = 0
+        for d_out_top in d_out_tops:
+            d_loss_top += ((d_out_top - fake_labels)**2).mean()
+
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
 
         print "d loss top gen", d_loss_top
 
-        g_loss_top = 1.0 * ((d_out_top - boundary_labels)**2).mean()
+        g_loss_top = 0
+        for d_out_top in d_out_tops:
+            g_loss_top = 1.0 * ((d_out_top - boundary_labels)**2).mean()
+
         gen_top.zero_grad()
         d_top.zero_grad()
         g_loss_top.backward(retain_graph=True)
