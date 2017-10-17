@@ -14,6 +14,7 @@ from utils import to_var
 from LayerNorm1d import LayerNorm1d
 from gradient_penalty import gradient_penalty
 import random
+from timeit import default_timer as timer
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -21,6 +22,7 @@ Initially just implement LSGAN on MNIST.
 Then implement a critic.  
 '''
 
+start_time = timer()
 
 def denorm(x):
     out = (x+1)/2
@@ -286,3 +288,8 @@ for epoch in range(200):
     rec_images_top = rec_images_top.view(rec_images_top.size(0), 1, 28, 28)
     save_image(denorm(rec_images_top.data), './data/%s_rec_images_top.png' %(slurm_name))
 
+end_time = timer()
+elapsed = end_time - start_time
+print 'total time used (in seconds):', elapsed
+print 'total time used (in minutes):', elapsed / 60.0
+print 'total time used (in hours):', elapsed / 60.0 / 60.0
