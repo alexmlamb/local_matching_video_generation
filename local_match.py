@@ -190,8 +190,8 @@ for epoch in range(200):
         g_loss_top = 0
         for d_out_top in d_out_tops:
             # Using inferred lower level z's as real examples for discriminator
-            d_loss_top += ((d_out_top - real_labels)**2).mean()
-            g_loss_top += ((d_out_top - boundary_labels)**2).mean()
+            d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - real_labels)**2).mean()
+            g_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
 
         print "d loss top inf", d_loss_top
 
@@ -230,7 +230,7 @@ for epoch in range(200):
         d_loss_top = 0
         for d_out_top in d_out_tops:
             # Using sampled lower level z's as fake examples for discriminator
-            d_loss_top += ((d_out_top - fake_labels)**2).mean()
+            d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - fake_labels)**2).mean()
 
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
@@ -241,7 +241,7 @@ for epoch in range(200):
         g_loss_top = 0
         for d_out_top in d_out_tops:
             # Generator loss pushing generated lower z's toward boundary
-            g_loss_top = 1.0 * ((d_out_top - boundary_labels)**2).mean()
+            g_loss_top = 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
 
         gen_top.zero_grad()
         d_top.zero_grad()
