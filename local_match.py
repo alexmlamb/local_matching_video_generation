@@ -9,8 +9,7 @@ import torchvision.datasets as datasets
 from torch.autograd import Variable, grad
 from torchvision.utils import save_image
 import os
-slurm_name = os.environ["SLURM_JOB_ID"]
-from utils import to_var
+from utils import to_var, make_dir_if_not_exists
 from LayerNorm1d import LayerNorm1d
 from gradient_penalty import gradient_penalty
 import random
@@ -23,7 +22,11 @@ Initially just implement LSGAN on MNIST.
 Then implement a critic.  
 '''
 
+slurm_name = os.environ["SLURM_JOB_ID"]
+DATA_DIR = os.path.abspath('data')
+EXP_DIR = os.path.join(os.path.abspath('exp'), slurm_name)
 start_time = timer()
+
 
 def denorm(x):
     out = (x+1)/2
@@ -282,25 +285,27 @@ for epoch in range(200):
 
         #print d_out_bot
 
+    make_dir_if_not_exists(EXP_DIR)
+
     # Log z norms
     z_bot_norm = map(torch_to_norm, z_bot_lst)
     z_bot_norms.append(max(z_bot_norm))
     z_top_norm = torch_to_norm(z_top)
     z_top_norms.append(z_top_norm)
     d = {'z_bot_norms': z_bot_norms, 'z_top_norms': z_top_norms}
-    with open('z_norms.pkl', 'wb') as f:
+    with open(os.path.join(EXP_DIR, 'z_norms.pkl'), 'wb') as f:
         pickle.dump(d, f)
 
     fake_images = torch.cat(gen_x_lst, 1)
 
     fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
-    save_image(denorm(fake_images.data), './data/%s_fake_images.png' %(slurm_name))
+    save_image(denorm(fake_images.data), os.path.join(EXP_DIR, 'fake_images%d.png' % epoch))
 
-    
+
     real_images = images.view(images.size(0), 1, 28, 28)
-    save_image(denorm(real_images.data), './data/%s_real_images.png' %(slurm_name))
+    save_image(denorm(real_images.data), os.path.join(EXP_DIR, 'real_images%d.png' % epoch))
 
-    
+
     #z_bot_lst = []
     x_bot_lst = []
     z_bot_lst = []
@@ -314,7 +319,7 @@ for epoch in range(200):
     rec_images_bot = torch.cat(x_bot_lst, 1)
 
     rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), 1, 28, 28)
-    save_image(denorm(rec_images_bot.data), './data/%s_rec_images_bot.png' %(slurm_name))
+    save_image(denorm(rec_images_bot.data), os.path.join(EXP_DIR, 'rec_images_bot%d.png' % epoch))
 
     z_bot = torch.cat(z_bot_lst, 1)
     z_top = inf_top(z_bot)
@@ -328,7 +333,7 @@ for epoch in range(200):
     rec_images_top = torch.cat(gen_x_lst, 1)
 
     rec_images_top = rec_images_top.view(rec_images_top.size(0), 1, 28, 28)
-    save_image(denorm(rec_images_top.data), './data/%s_rec_images_top.png' %(slurm_name))
+    save_image(denorm(rec_images_top.data), os.path.join(EXP_DIR, 'rec_images_top%d.png' % epoch))
 
 end_time = timer()
 elapsed = end_time - start_time
