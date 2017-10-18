@@ -15,6 +15,7 @@ from LayerNorm1d import LayerNorm1d
 from gradient_penalty import gradient_penalty
 import random
 from timeit import default_timer as timer
+import pickle
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -27,6 +28,11 @@ start_time = timer()
 def denorm(x):
     out = (x+1)/2
     return out.clamp(0,1)
+
+
+def torch_to_norm(zs):
+    return zs.norm(2).data.cpu().numpy()[0]
+
 
 batch_size = 100
 
@@ -42,7 +48,7 @@ mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=tran
 data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
 
 nz = 64
-ns = 8
+ns = 4
 
 print "ns", ns
 
@@ -97,7 +103,8 @@ gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003)
 inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003)
 gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
 
-
+z_bot_norms = []
+z_top_norms = []
 for epoch in range(200):
     for i, (images, _) in enumerate(data_loader):
 
@@ -116,16 +123,22 @@ for epoch in range(200):
 
         z_bot_lst = []
         for seg in range(0,ns):
+            # Infer lower level z from data
             xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
             zs = inf_bot(xs)
-
+            
+            # Feed discriminator real data
+            # Discriminator on only x (not ALI)
             d_out_bot = d_bot(torch.cat((xs,),1))
-
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
+            
+            # Generator loss pushing real data toward boundary
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
 
             print "d loss bot inf", d_loss_bot
 
+            # Reconstruct x through lower level z
+            # Currently used for lower level generator learning
             reconstruction = gen_bot(zs)
             rec_loss = ((reconstruction - xs)**2).mean()
 
@@ -146,6 +159,8 @@ for epoch in range(200):
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
             
+            # Only do update 10% of the time
+            # But still backprop every time?
             if random.uniform(0,1) < 0.1:
                 gen_bot_optimizer.step()
                 inf_bot_optimizer.step()
@@ -156,19 +171,25 @@ for epoch in range(200):
 
         z_bot = Variable(z_bot.data)
 
+        # Infer higher level z from data
         z_top = inf_top(z_bot)
 
+        # Reconstruct lower level z through higher level z
+        # Currently used for higher level generator learning
         z_bot_rec = gen_top(z_top)
-
         reconstruction_loss = ((z_bot - z_bot_rec)**2).mean()
 
         print "high level rec loss", reconstruction_loss
 
+        # Discriminator on only lower z (not ALI)
         d_out_tops = d_top(z_bot)
-
+        
+        # Higher level discriminator now outputs a list, so sum over that list
+        # Consider down-weighting each element by the number in the list?
         d_loss_top = 0
         g_loss_top = 0
         for d_out_top in d_out_tops:
+            # Using inferred lower level z's as real examples for discriminator
             d_loss_top += ((d_out_top - real_labels)**2).mean()
             g_loss_top += ((d_out_top - boundary_labels)**2).mean()
 
@@ -195,17 +216,20 @@ for epoch in range(200):
 
         print "epoch", epoch
         #============GENERATION PROCESS========================$
-
+    
+        # Sample higher and lower z
         z_top = to_var(torch.randn(batch_size, nz))
-
         z_bot = gen_top(z_top)
-
+        
         d_out_top = d_top(z_bot)
 
         d_top.zero_grad()
 
+        # Higher level discriminator now outputs a list, so sum over that list
+        # Consider down-weighting each element by the number in the list?
         d_loss_top = 0
         for d_out_top in d_out_tops:
+            # Using sampled lower level z's as fake examples for discriminator
             d_loss_top += ((d_out_top - fake_labels)**2).mean()
 
         d_loss_top.backward(retain_graph=True)
@@ -213,8 +237,10 @@ for epoch in range(200):
 
         print "d loss top gen", d_loss_top
 
+        # Consider down-weighting each element by the number in the list?
         g_loss_top = 0
         for d_out_top in d_out_tops:
+            # Generator loss pushing generated lower z's toward boundary
             g_loss_top = 1.0 * ((d_out_top - boundary_labels)**2).mean()
 
         gen_top.zero_grad()
@@ -226,11 +252,13 @@ for epoch in range(200):
 
         gen_x_lst = []
         for seg in range(0,ns):
+            # Generate sampled x's
             seg_z = z_bot[:,seg*nz:(seg+1)*nz]*1.0 + 0.0*to_var(torch.randn(batch_size, nz))
             seg_x = gen_bot(seg_z)
 
             gen_x_lst.append(seg_x)
             d_out_bot = d_bot(torch.cat((seg_x,),1))
+            # Discriminator for generated x's (not ALI)
             d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
             
             print "d loss bot gen", d_loss_bot
@@ -240,10 +268,15 @@ for epoch in range(200):
             d_bot_optimizer.step()
 
             print "train with less g loss bot"
+            
+            # Generator loss pushing generated x's toward boundary
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
             gen_bot.zero_grad()
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
+            
+            # Only update generator 10% of time
+            # But still backprop every time?
             if random.uniform(0,1) < 0.1:
                 gen_bot_optimizer.step()
 
