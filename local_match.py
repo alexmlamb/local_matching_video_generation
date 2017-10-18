@@ -138,6 +138,9 @@ for epoch in range(200):
             # Generator loss pushing real data toward boundary
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
 
+            # Add z norm penalty
+            g_loss_bot += 1.0 * zs.norm(2)
+
             print "d loss bot inf", d_loss_bot
 
             # Reconstruct x through lower level z
