@@ -299,11 +299,11 @@ for epoch in range(200):
     fake_images = torch.cat(gen_x_lst, 1)
 
     fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
-    save_image(denorm(fake_images.data), os.path.join(EXP_DIR, 'fake_images%d.png' % epoch))
+    save_image(denorm(fake_images.data), os.path.join(EXP_DIR, 'fake_images%03d.png' % epoch))
 
 
     real_images = images.view(images.size(0), 1, 28, 28)
-    save_image(denorm(real_images.data), os.path.join(EXP_DIR, 'real_images%d.png' % epoch))
+    save_image(denorm(real_images.data), os.path.join(EXP_DIR, 'real_images%03d.png' % epoch))
 
 
     #z_bot_lst = []
@@ -319,7 +319,7 @@ for epoch in range(200):
     rec_images_bot = torch.cat(x_bot_lst, 1)
 
     rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), 1, 28, 28)
-    save_image(denorm(rec_images_bot.data), os.path.join(EXP_DIR, 'rec_images_bot%d.png' % epoch))
+    save_image(denorm(rec_images_bot.data), os.path.join(EXP_DIR, 'rec_images_bot%03d.png' % epoch))
 
     z_bot = torch.cat(z_bot_lst, 1)
     z_top = inf_top(z_bot)
@@ -333,7 +333,7 @@ for epoch in range(200):
     rec_images_top = torch.cat(gen_x_lst, 1)
 
     rec_images_top = rec_images_top.view(rec_images_top.size(0), 1, 28, 28)
-    save_image(denorm(rec_images_top.data), os.path.join(EXP_DIR, 'rec_images_top%d.png' % epoch))
+    save_image(denorm(rec_images_top.data), os.path.join(EXP_DIR, 'rec_images_top%03d.png' % epoch))
 
 end_time = timer()
 elapsed = end_time - start_time
