@@ -221,7 +221,7 @@ for epoch in range(200):
         z_top = to_var(torch.randn(batch_size, nz))
         z_bot = gen_top(z_top)
         
-        d_out_top = d_top(z_bot)
+        d_out_tops = d_top(z_bot)
 
         d_top.zero_grad()
 
