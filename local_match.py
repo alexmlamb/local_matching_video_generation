@@ -282,6 +282,15 @@ for epoch in range(200):
 
         #print d_out_bot
 
+    # Log z norms
+    z_bot_norm = map(torch_to_norm, z_bot_lst)
+    z_bot_norms.append(max(z_bot_norm))
+    z_top_norm = torch_to_norm(z_top)
+    z_top_norms.append(z_top_norm)
+    d = {'z_bot_norms': z_bot_norms, 'z_top_norms': z_top_norms}
+    with open('z_norms.pkl', 'wb') as f:
+        pickle.dump(d, f)
+
     fake_images = torch.cat(gen_x_lst, 1)
 
     fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
