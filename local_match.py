@@ -25,6 +25,9 @@ Then implement a critic.
 slurm_name = os.environ["SLURM_JOB_ID"]
 DATA_DIR = os.path.abspath('data')
 EXP_DIR = os.path.join(os.path.abspath('exp'), slurm_name)
+SUM_DISC_OUTS = False
+Z_NORM_MULT = 1e-3
+
 start_time = timer()
 
 
@@ -139,7 +142,8 @@ for epoch in range(200):
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
 
             # Add z norm penalty
-            g_loss_bot += 1e-3 * zs.norm(2)
+            if Z_NORM_MULT is not None:
+                g_loss_bot += Z_NORM_MULT * zs.norm(2)
 
             print "d loss bot inf", d_loss_bot
 
@@ -191,13 +195,16 @@ for epoch in range(200):
         d_out_tops = d_top(z_bot)
         
         # Higher level discriminator now outputs a list, so sum over that list
-        # Consider down-weighting each element by the number in the list?
-        d_loss_top = 0
-        g_loss_top = 0
-        for d_out_top in d_out_tops:
-            # Using inferred lower level z's as real examples for discriminator
-            d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - real_labels)**2).mean()
-            g_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
+        if SUM_DISC_OUTS:
+            d_loss_top = 0
+            g_loss_top = 0
+            for d_out_top in d_out_tops:
+                # Using inferred lower level z's as real examples for discriminator
+                d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - real_labels)**2).mean()
+                g_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
+        else:
+            d_loss_top = ((d_out_tops[-1] - real_labels)**2).mean()
+            g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
 
         print "d loss top inf", d_loss_top
 
@@ -232,11 +239,13 @@ for epoch in range(200):
         d_top.zero_grad()
 
         # Higher level discriminator now outputs a list, so sum over that list
-        # Consider down-weighting each element by the number in the list?
-        d_loss_top = 0
-        for d_out_top in d_out_tops:
-            # Using sampled lower level z's as fake examples for discriminator
-            d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - fake_labels)**2).mean()
+        if SUM_DISC_OUTS:
+            d_loss_top = 0
+            for d_out_top in d_out_tops:
+                # Using sampled lower level z's as fake examples for discriminator
+                d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - fake_labels)**2).mean()
+        else:
+            d_loss_top += ((d_out_tops[-1] - fake_labels)**2).mean()
 
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
@@ -244,10 +253,13 @@ for epoch in range(200):
         print "d loss top gen", d_loss_top
 
         # Consider down-weighting each element by the number in the list?
-        g_loss_top = 0
-        for d_out_top in d_out_tops:
-            # Generator loss pushing generated lower z's toward boundary
-            g_loss_top = 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
+        if SUM_DISC_OUTS:
+            g_loss_top = 0
+            for d_out_top in d_out_tops:
+                # Generator loss pushing generated lower z's toward boundary
+                g_loss_top = 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
+        else:
+            g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
 
         gen_top.zero_grad()
         d_top.zero_grad()
