@@ -25,8 +25,6 @@ class Gen_Top(nn.Module):
         self.l3 = nn.Linear(nh, no)
         self.l3_sigma = nn.Linear(nh, no)
 
-        self.sigmoid = nn.Sigmoid()
-        self.tanh = nn.Tanh()
 
     def forward(self, z):
         extra_noise = to_var(torch.randn(self.batch_size, self.nz))
@@ -40,9 +38,7 @@ class Gen_Top(nn.Module):
 
         out_mu = self.l3(out)
 
-        zo = to_var(torch.randn(self.batch_size, self.no))
-
-        out_final = self.tanh(out_mu)*1.0# + zo * self.sigmoid(self.l3_sigma(out))
+        out_final = out_mu
 
         return out_final
 

@@ -4,73 +4,94 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from utils import to_var
-from LayerNorm1d import LayerNorm1d
 
 class D_Bot(nn.Module):
 
-    def __init__(self, batch_size, nz):
+    def __init__(self, batch_size, nx, nz, nh):
         super(D_Bot, self).__init__()
-
-        norm = LayerNorm1d
 
         self.batch_size = batch_size
 
-        self.l1 = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2))
+        self.lbot = nn.Linear(nx, nh)
+        self.abot = nn.LeakyReLU(0.02)
 
+        self.ltop = nn.Linear(nz, nh)
+        self.atop = nn.LeakyReLU(0.02)
+
+        self.l1 = nn.Linear(nh+nh, nh)
+        self.a1 = nn.LeakyReLU(0.02)
+        self.l2 = nn.Linear(nh,nh)
+        self.a2 = nn.LeakyReLU(0.02)
+        self.l3 = nn.Linear(nh, 1)
+
+    def forward(self, x, z):
+
+        h_bot = self.lbot(x)
+        h_bot = self.abot(h_bot)
+
+        h_top = self.ltop(z)
+        h_top = self.atop(h_top)
+
+        h = torch.cat((h_bot,h_top), 1)
+
+        out = self.l1(h)
+        out = self.a1(out)
+        out = self.l2(out)
+        out = self.a2(out)
+        out = self.l3(out)
+
+        return [out,h_bot]
+
+
+class D_Bot_Conv32(nn.Module):
+    def __init__(self, batch_size, nz):
+        super(D_Bot_Conv32, self).__init__()
+        self.batch_size = batch_size
+
+        self.zo2 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 256*8*8),
+            nn.LeakyReLU(0.02))
+
+        self.zo3 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 512*4*4),
+            nn.LeakyReLU(0.02))
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
         self.l2 = nn.Sequential(
-            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2))
+            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
 
         self.l3 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2))
-
-        self.l4 = nn.Sequential(
             nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2))
-        
-        self.l5 = nn.Sequential(
-            nn.Linear(512*4*4, 512),
-            nn.LeakyReLU(0.2))
+            nn.LeakyReLU(0.02))
 
-        self.l1_z = nn.Sequential(
-            nn.Linear(nz, 512),
-            nn.LeakyReLU(0.2))
-
-        self.l6 = nn.Sequential(
-            nn.Linear(1024, 512),
-            nn.LeakyReLU(0.2),
-            nn.Linear(512, 512))
-
-        self.o1 = nn.Conv2d(64, 1, kernel_size=3, padding=1, stride=1)
-        self.o2 = nn.Conv2d(128, 1, kernel_size=3, padding=1, stride=1)
-        self.o3 = nn.Conv2d(256, 1, kernel_size=3, padding=1, stride=1)
-        self.o4 = nn.Conv2d(512, 1, kernel_size=3, padding=1, stride=1)
-        self.o5 = nn.Sequential(nn.Linear(512,1))
+        self.l_end = nn.Sequential(
+            nn.Conv2d(512, 1, kernel_size=5, padding=2, stride=2))
 
     def forward(self, x,z):
-        h1 = self.l1(x)
-        h2 = self.l2(h1)
-        h3 = self.l3(h2)
-        h4 = self.l4(h3)
-        h4_ = self.l5(h4.view(self.batch_size, -1))
 
-        h1z = self.l1_z(z*0.0)
+        zo2 = self.zo2(z).view(self.batch_size,256,8,8) #goes to 256x8x8
+        zo3 = self.zo3(z).view(self.batch_size,512,4,4)
 
-        h5 = self.l6(torch.cat((h4_, h1z), 1))
+        out = self.l1(x)
+        out = self.l2(out) + zo2
+        out = self.l3(out) + zo3
+        out = self.l_end(out)
+        out = out.view(self.batch_size,-1)
+        return out
 
-        y1 = self.o1(h1)
-        y2 = self.o2(h2)
-        y3 = self.o3(h3)
-        y4 = self.o4(h4)
-        y5 = self.o5(h5)
 
-        return [y2,y3,y4,y5]
+
+
+
+
+
+
 
 

@@ -56,7 +56,7 @@ def weights_init(m):
 mnist = np.load('/u/lambalex/Downloads/mnist_test_seq.npy').astype('float32')
 
 nz = 64
-ns = 4 #20
+ns = 2 #20
 
 from D_Top import D_Top
 d_top = D_Top(batch_size, nz*ns, nz, 256)
@@ -96,7 +96,7 @@ if torch.cuda.is_available():
     for model in models: 
         model.cuda()
 
-lr = 0.00001
+lr = 0.0001
 
 print "lr", lr
 
@@ -123,12 +123,16 @@ for epoch in range(5000):
 
         d_top.zero_grad()
 
-        d_loss_top = ls_loss(d_out_top, 0).mean()
+        #d_loss_top = ls_loss(d_out_top, 0).mean()
+
+        d_loss_top = gan_loss_multi(pre_sig_lst=d_out_top, real=False, D=True, use_penalty=True,grad_inp=z_bot)
 
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
 
-        g_loss_top = ls_loss(d_out_top, 1.0).mean()
+        #g_loss_top = ls_loss(d_out_top, 1.0).mean()
+
+        g_loss_top = gan_loss_multi(pre_sig_lst=d_out_top, real=False, D=False, use_penalty=False,grad_inp=None)
 
         gen_top.zero_grad()
         d_top.zero_grad()
@@ -194,7 +198,7 @@ for epoch in range(5000):
 
             #============================Low level generation==================================================
 
-            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 1.0 + 0.0 * to_var(torch.randn(batch_size, nz))
+            seg_z = z_bot[:,seg*nz:(seg+1)*nz] * 0.0 + 1.0 * to_var(torch.randn(batch_size, nz))
             seg_x = gen_bot(seg_z)
             gen_x_lst.append(seg_x)
 
@@ -223,7 +227,7 @@ for epoch in range(5000):
 
         z_bot = torch.cat(z_bot_lst, 1)
 
-        z_bot = Variable(z_bot.data)
+        z_bot = Variable(z_bot.data,requires_grad=True)
 
         z_top = inf_top(z_bot)
 
@@ -235,8 +239,11 @@ for epoch in range(5000):
 
         d_out_top = d_top(z_bot)
 
-        d_loss_top = ls_loss(d_out_top, 1).mean()#((d_out_top - real_labels)**2).mean()
-        g_loss_top = ls_loss(d_out_top, 0.5).mean()#((d_out_top - boundary_labels)**2).mean()
+        #d_loss_top = ls_loss(d_out_top, 1).mean()#((d_out_top - real_labels)**2).mean()
+        #g_loss_top = ls_loss(d_out_top, 0.5).mean()#((d_out_top - boundary_labels)**2).mean()
+
+        d_loss_top = gan_loss_multi(pre_sig_lst=d_out_top, real=True, D=True, use_penalty=True,grad_inp=z_bot)
+        g_loss_top = gan_loss_multi(pre_sig_lst=d_out_top, real=True, D=False, use_penalty=False,grad_inp=None)
 
         #print "d loss top inf", d_loss_top
 

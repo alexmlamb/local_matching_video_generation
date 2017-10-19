@@ -1,3 +1,4 @@
+
 '''
 Loss corresponding to "stabilizing gans by regularization"
 
@@ -32,7 +33,7 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         cl = -torch.log(p).mean()
  
         if use_penalty:
-            penalty = ((1 - p)**2 * gv).mean()
+            penalty = (gv).mean()#((1 - p)**2 * gv).mean()
         else:
             penalty = 0.0
 
@@ -44,7 +45,7 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         cl = -torch.log(1-p).mean()
 
         if use_penalty:
-            penalty = (p**2 * gv).mean()
+            penalty = (gv).mean()#(p**2 * gv).mean()
         else:
             penalty = 0.0
 
@@ -89,6 +90,7 @@ if __name__ == "__main__":
         g = grad(l, x)[0].norm(2)
         print "loss", l
         print "grad", g
+
 
 
 

@@ -6,14 +6,12 @@ import torchvision
 import torch.nn as nn
 import numpy as np
 import torch.utils.data as data
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 from torch.autograd import Variable, grad
 from torchvision.utils import save_image
 import os
 slurm_name = os.environ["SLURM_JOB_ID"]
 
-from reg_loss2 import gan_loss
+from reg_loss import gan_loss
 from LayerNorm1d import LayerNorm1d
 
 '''
@@ -21,6 +19,8 @@ Initially just implement LSGAN on MNIST.
 
 Then implement a critic.  
 '''
+
+batch_size = 128
 
 def to_var(x):
     if torch.cuda.is_available():
@@ -31,44 +31,49 @@ def denorm(x):
     out = (x+1)/2
     return out.clamp(0,1)
 
-transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
+pacman_data = np.load('pacman_data_20k.npy')
 
-mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
+pacman_data = pacman_data#(pacman_data + 1)/2.0
 
-data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=100, shuffle=True)
-
+print pacman_data.dtype
 
 #Discriminator
-D = nn.Sequential(
-    nn.Linear(784, 512),
-    nn.LeakyReLU(0.01),
-    nn.Linear(512, 512),
-    nn.LeakyReLU(0.01),
-    nn.Linear(512, 1))
+#D = nn.Sequential(
+#    nn.Linear(32*32*3, 512),
+#    nn.LeakyReLU(0.02),
+#    nn.Linear(512, 512),
+#    nn.LeakyReLU(0.02),
+#    nn.Linear(512, 1))
+
+from D_Bot import D_Bot_Conv32
+D = D_Bot_Conv32(batch_size)
+
+from Gen_Bot import Gen_Bot_Conv32
+G = Gen_Bot_Conv32(batch_size, 64)
 
 # Generator 
-G = nn.Sequential(
-    nn.Linear(64, 512),
-    nn.LeakyReLU(0.01),
-    nn.Linear(512, 512),
-    nn.LeakyReLU(0.01),
-    nn.Linear(512, 784),
-    nn.Tanh())
+#G = nn.Sequential(
+#    nn.Linear(64, 512),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(512, 512),
+#    nn.LeakyReLU(0.2),
+#    nn.Linear(512, 32*32*3),
+#    nn.Tanh())
 
 
 if torch.cuda.is_available():
     D = D.cuda()
     G = G.cuda()
 
-d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0001)
-g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0001)
+d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0001, betas=(0.5,0.99))
+g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0001, betas=(0.5,0.99))
 
 for epoch in range(200):
-    for i, (images, _) in enumerate(data_loader):
+    for i in range(0, 19000, batch_size):
 
-        batch_size = images.size(0)
+        images = torch.from_numpy(pacman_data[0,i:i+batch_size,:,:,:])
 
-        images = to_var(images.view(batch_size, -1))
+        images = to_var(images)
 
         use_penalty = True
         print "up", use_penalty
@@ -93,8 +98,8 @@ for epoch in range(200):
         d_optimizer.step()
 
 
-        print "fake scores D", fake_score[0:10]
-        print "real scores D", real_score[0:10]
+        print "fake scores D", fake_score.mean()
+        print "real scores D", real_score.mean()
         print "epoch", epoch
         #============TRAIN GENERATOR========================$
 
@@ -111,8 +116,11 @@ for epoch in range(200):
         g_optimizer.step()
 
 
-    fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
+    fake_images = fake_images.view(fake_images.size(0), 3, 32, 32)
     save_image(denorm(fake_images.data), './data/%s_fake_images.png' %(slurm_name))
 
+    real_images = images.view(images.size(0), 3, 32, 32)
+    print "real images min max", real_images.min(), real_images.max()
+    save_image(denorm(real_images.data), './data/%s_real_images.png' %(slurm_name))
 
 

@@ -12,29 +12,27 @@ class D_Top(nn.Module):
 
         self.batch_size = batch_size
 
-        #self.lbot = nn.Linear(nb, nh)
-        #self.abot = nn.LeakyReLU(0.2)
+        self.lbot = nn.Linear(nb, nh)
+        self.abot = nn.LeakyReLU(0.2)
 
-        #self.ltop = nn.Linear(nt, nh)
-        #self.atop = nn.LeakyReLU(0.2)
+        self.ltop = nn.Linear(nt, nh)
+        self.atop = nn.LeakyReLU(0.2)
 
-        self.l1 = nn.Linear(nb, nh)
+        self.l1 = nn.Linear(nh+nh, nh)
         self.a1 = nn.LeakyReLU(0.2)
         self.l2 = nn.Linear(nh,nh)
         self.a2 = nn.LeakyReLU(0.2)
         self.l3 = nn.Linear(nh, 1)
 
-    def forward(self, z_bot):
+    def forward(self, z_bot, z_top=None):
 
-        #h_bot = self.lbot(z_bot)
-        #h_bot = self.abot(h_bot)
+        h_bot = self.lbot(z_bot)
+        h_bot = self.abot(h_bot)
 
-        #h_top = self.ltop(z_top)
-        #h_top = self.atop(h_top)
+        h_top = self.ltop(z_top)
+        h_top = self.atop(h_top)
 
-        #h = torch.cat((h_bot), 1)
-
-        h = z_bot
+        h = torch.cat((h_bot,h_top), 1)
 
         out = self.l1(h)
         out = self.a1(out)
@@ -42,7 +40,6 @@ class D_Top(nn.Module):
         out = self.a2(out)
         out = self.l3(out)
         return [out]
-
 
 
 
