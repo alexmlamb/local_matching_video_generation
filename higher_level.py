@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import sys
 sys.path.insert(0, '/u/lambalex/.local/lib/python2.7/site-packages/torch-0.2.0+4af66c4-py2.7-linux-x86_64.egg')
 import torch
@@ -5,6 +7,10 @@ import numpy as np
 from torch.autograd import Variable, grad
 from utils import to_var, denorm
 from torchvision.utils import save_image
+import torch.nn as nn
+from reg_loss import gan_loss
+import os
+slurm_name = os.environ["SLURM_JOB_ID"]
 
 '''
 Trains a higher level model in isolation using a pre-trained generator and inference network from the lower level.  
@@ -21,37 +27,98 @@ GB = GB.cuda()
 pacman_data = np.load('pacman_data_20k.npy')
 
 
-for t in range(0,5):
-    pacman_frames = to_var(torch.from_numpy(pacman_data[t,0:0+128,:,:,:]))
+# Generator
+#Gh = nn.Sequential(
+#    nn.Linear(64, 1024),
+#    nn.BatchNorm1d(1024),
+#    nn.LeakyReLU(0.02),
+#    nn.Linear(1024, 1024),
+#    nn.BatchNorm1d(1024),
+#    nn.LeakyReLU(0.02),
+#    nn.Linear(1024, 4*4*512*5))
 
-    #enc = to_var(torch.randn(128,512,4,4)) * 0.2
-    enc = IB(pacman_frames,take_pre=True)
+from Gen_Top import Gen_Top_4
+Gh = Gen_Top_4(128,64)
 
-    print enc.size()
+#Discriminator
+Dh = nn.Sequential(
+    nn.Linear(4*4*512*5, 1024),
+    #nn.BatchNorm1d(512),
+    nn.LeakyReLU(0.02),
+    nn.Linear(1024, 1024),
+    #nn.BatchNorm1d(512),
+    nn.LeakyReLU(0.02),
+    nn.Linear(1024, 1))
 
-    dec = GB(enc, give_pre=True)
+if torch.cuda.is_available():
+    Dh = Dh.cuda()
+    Gh = Gh.cuda()
 
-    print dec.size()
 
-    new_enc = enc
+dh_optimizer = torch.optim.Adam(Dh.parameters(), lr=0.0001, betas=(0.5,0.99))
+gh_optimizer = torch.optim.Adam(Gh.parameters(), lr=0.0001, betas=(0.5,0.99))
+
+for epoch in range(0,4000):
+
+    print "epoch", epoch
+
+    for i in range(0,19000,128):
+
+        pacman_frame_lst = []
+
+        for t in range(0,5):
+            pacman_frames = to_var(torch.from_numpy(pacman_data[t,i:i+128,:,:,:]))
+            enc = IB(pacman_frames, take_pre=True).view(128,-1)
+            pacman_frame_lst.append(enc)
+
+        real = to_var(torch.cat(pacman_frame_lst,1).data)
+
+        real_score = Dh(real)
+
+        d_loss_real = gan_loss(pre_sig=real_score, real=True, D=True, use_penalty=True,grad_inp=real,gamma=1.0)
+
+        Dh.zero_grad()
+        d_loss_real.backward()
+
+        dh_optimizer.step()
+
+
+        #GENERATION ===========================
+        z_raw = to_var(torch.randn(128,64))
+
+        gen_val = Gh(z_raw)
+
+        fake_score = Dh(gen_val)
+
+        d_loss_fake = gan_loss(pre_sig=fake_score, real=False, D=True, use_penalty=True,grad_inp=gen_val,gamma=1.0)
+
+        Dh.zero_grad()
+        d_loss_fake.backward(retain_graph=True)
+        dh_optimizer.step()
     
+        g_loss_fake = gan_loss(pre_sig=fake_score, real=False, D=False, use_penalty=False,grad_inp=None,gamma=None)
 
-    for k in range(0,1):
+        Dh.zero_grad()
+        Gh.zero_grad()
+        g_loss_fake.backward()
+        gh_optimizer.step()
 
-        new_dec = GB(new_enc, give_pre=True)
+    print "fake score", fake_score.mean()
+    print "real score", real_score.mean()
+    
+    for t in range(0,5):
+        one_step = gen_val[:,(512*4*4)*t:(512*4*4)*(t+1)]
+        one_step = one_step.contiguous().view(128,512,4,4)
+        img = GB(one_step,give_pre=True)
 
-        loss = ((new_dec - pacman_frames)**2).mean()
+        save_image(denorm(img.data), 'data/%s_fake_%d.png' % (slurm_name,t))
 
-        print k
-        print loss
+        one_step_real = real[:,(512*4*4)*t:(512*4*4)*(t+1)]
+        one_step_real = one_step_real.contiguous().view(128,512,4,4)
+        img = GB(one_step_real,give_pre=True)
 
-        new_enc = new_enc - 100.0 * grad(loss, new_enc)[0]
+        save_image(denorm(img.data), 'data/%s_realrec_%d.png' % (slurm_name,t))
 
-        print "z norm", new_enc.norm(2)
-
-        new_enc = to_var(new_enc.data)
-
-    save_image(denorm(new_dec.data), 'derp_%d.png' % t)
 
 #rdir = 0.01 * to_var(torch.randn(128,64))
 
