@@ -7,11 +7,19 @@ from operator import mul
 # from utils import to_var
 # from LayerNorm1d import LayerNorm1d
 
-NUM_KERNELS = [64, 128]
-KERNEL_SIZE = [3, 3]
-PADDING = [2, 1]
-STRIDE = [2, 2]
 NUM_CHANNELS = 1
+PARAMS7 = {
+    'num_kernels': [64, 128],
+    'kernel_size': [3, 3],
+    'padding': [2, 1],
+    'stride': [2, 2],
+}
+PARAMS14 = {
+    'num_kernels': [64, 128],
+    'kernel_size': [4, 4],
+    'padding': [2, 2],
+    'stride': [2, 2],
+}
 
 def compute_conv_output_size(input_size, kernel_size, padding, stride):
     return (input_size - kernel_size + 2 * padding) / stride + 1
@@ -21,20 +29,31 @@ class Inf_Low(nn.Module):
     def __init__(self, batch_size, nx, nz):
         super(Inf_Low, self).__init__()
         self.batch_size = batch_size
+        if nx == 7:
+            params = PARAMS7
+        elif nx == 14:
+            params = PARAMS14
+        else:
+            raise ValueError('Unexpected nx: %d' % nx)
+        num_kernels = params['num_kernels']
+        kernel_size = params['kernel_size']
+        padding = params['padding']
+        stride = params['stride']
 
-        nconv1 = compute_conv_output_size(nx, KERNEL_SIZE[0], PADDING[0], STRIDE[0])
-        nconv2 = compute_conv_output_size(nconv1, KERNEL_SIZE[1], PADDING[1], STRIDE[1])
-        conv_out_shape = [NUM_KERNELS[-1], nconv2, nconv2]
+        nconv1 = compute_conv_output_size(nx, kernel_size[0], padding[0], stride[0])
+        nconv2 = compute_conv_output_size(nconv1, kernel_size[1], padding[1], stride[1])
+        conv_out_shape = [num_kernels[-1], nconv2, nconv2]
         fc_input_size = reduce(mul, conv_out_shape, 1)
+        print 'Inf conv_out_shape:', conv_out_shape
 
         self.conv1 = nn.Sequential(
-            nn.Conv2d(NUM_CHANNELS, NUM_KERNELS[0], kernel_size=KERNEL_SIZE[0],
-                      padding=PADDING[0], stride=STRIDE[0]),
+            nn.Conv2d(NUM_CHANNELS, num_kernels[0], kernel_size=kernel_size[0],
+                      padding=padding[0], stride=stride[0]),
             nn.LeakyReLU(0.2))
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(NUM_KERNELS[0], NUM_KERNELS[1], kernel_size=KERNEL_SIZE[1],
-                      padding=PADDING[1], stride=STRIDE[1]),
+            nn.Conv2d(num_kernels[0], num_kernels[1], kernel_size=kernel_size[1],
+                      padding=padding[1], stride=stride[1]),
             nn.LeakyReLU(0.2))
 
         self.fc = nn.Linear(fc_input_size, nz)
@@ -55,28 +74,50 @@ class Gen_Low(nn.Module):
     def __init__(self, batch_size, nx, nz):
         super(Gen_Low, self).__init__()
         self.batch_size = batch_size
+        if nx == 7:
+            params = PARAMS7
+        elif nx == 14:
+            params = PARAMS14
+        else:
+            raise ValueError('Unexpected nx: %d' % nx)
+        num_kernels = params['num_kernels']
+        self.num_kernels = num_kernels
+        kernel_size = params['kernel_size']
+        padding = params['padding']
+        stride = params['stride']
 
-        nconv1 = compute_conv_output_size(nx, KERNEL_SIZE[0], PADDING[0], STRIDE[0])
-        nconv2 = compute_conv_output_size(nconv1, KERNEL_SIZE[1], PADDING[1], STRIDE[1])
+        nconv1 = compute_conv_output_size(nx, kernel_size[0], padding[0], stride[0])
+        nconv2 = compute_conv_output_size(nconv1, kernel_size[1], padding[1], stride[1])
         self.conv_kernel_len = nconv2
-        conv_out_shape = [NUM_KERNELS[-1], nconv2, nconv2]
+        conv_out_shape = [num_kernels[-1], nconv2, nconv2]
+        print 'Gen conv_out_shape:', conv_out_shape
         fc_output_size = reduce(mul, conv_out_shape, 1)
 
         self.fc = nn.Linear(nz, fc_output_size)
 
         self.convT1 = nn.Sequential(
-            nn.ConvTranspose2d(NUM_KERNELS[-1], NUM_KERNELS[-2], kernel_size=KERNEL_SIZE[-1],
-                               padding=PADDING[-1], stride=STRIDE[-1]),
+            nn.ConvTranspose2d(num_kernels[-1], num_kernels[-2], kernel_size=kernel_size[-1],
+                               padding=padding[-1], stride=stride[-1]),
             nn.LeakyReLU(0.2))
 
         self.convT2 = nn.Sequential(
-            nn.ConvTranspose2d(NUM_KERNELS[-2], NUM_CHANNELS, kernel_size=KERNEL_SIZE[-2],
-                               padding=PADDING[-2], stride=STRIDE[-2]),
+            nn.ConvTranspose2d(num_kernels[-2], NUM_CHANNELS, kernel_size=kernel_size[-2],
+                               padding=padding[-2], stride=stride[-2]),
             nn.Tanh())
+
+        # self.convT1 = nn.Sequential(
+        #     nn.ConvTranspose2d(NUM_KERNELS[1], NUM_KERNELS[0], kernel_size=KERNEL_SIZE[1],
+        #                        padding=PADDING[1], stride=STRIDE[1]),
+        #     nn.LeakyReLU(0.2))
+        # 
+        # self.convT2 = nn.Sequential(
+        #     nn.ConvTranspose2d(NUM_KERNELS[0], NUM_CHANNELS, kernel_size=KERNEL_SIZE[0],
+        #                        padding=PADDING[0], stride=STRIDE[0]),
+        #     nn.Tanh())
 
     def forward(self, z):
         h1 = self.fc(z)
-        h1_2d = h1.view(self.batch_size, NUM_KERNELS[-1], self.conv_kernel_len, self.conv_kernel_len)
+        h1_2d = h1.view(self.batch_size, self.num_kernels[-1], self.conv_kernel_len, self.conv_kernel_len)
         h_conv1 = self.convT1(h1_2d)
         out = self.convT2(h_conv1)
         return out

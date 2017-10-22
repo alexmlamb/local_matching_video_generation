@@ -131,7 +131,6 @@ for epoch in range(200):
             i = seg / ns_per_dim
             j = seg % ns_per_dim
             xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
-            print 'xs.size():', xs.size()
             zs = inf_bot(xs)
             
             # Feed discriminator real data
@@ -151,6 +150,9 @@ for epoch in range(200):
             # Reconstruct x through lower level z
             # Currently used for lower level generator learning
             reconstruction = gen_bot(zs)
+            print 'zs.size():', zs.size()
+            print 'xs.size():', xs.size()
+            print 're.size():', reconstruction.size()
             rec_loss = ((reconstruction - xs)**2).mean()
 
             if True:
@@ -158,7 +160,7 @@ for epoch in range(200):
                 print "training with reconstruction loss"
             else:
                 print "training without low level reconstruction loss"
-            
+
             print "reconstruction loss", rec_loss
 
             d_bot.zero_grad()
@@ -169,7 +171,7 @@ for epoch in range(200):
             inf_bot.zero_grad()
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
-            
+
             # Only do update 10% of the time
             # But still backprop every time?
             if random.uniform(0,1) < 0.1:
@@ -193,7 +195,6 @@ for epoch in range(200):
         print "high level rec loss", reconstruction_loss
 
         # Discriminator on only lower z (not ALI)
-        print "###### z_bot:", z_bot
         d_out_tops = d_top(z_bot)
         
         # Higher level discriminator now outputs a list, so sum over that list
@@ -231,11 +232,11 @@ for epoch in range(200):
 
         print "epoch", epoch
         #============GENERATION PROCESS========================$
-    
+
         # Sample higher and lower z
         z_top = to_var(torch.randn(batch_size, nz))
         z_bot = gen_top(z_top)
-        
+
         d_out_tops = d_top(z_bot)
 
         d_top.zero_grad()
@@ -280,7 +281,7 @@ for epoch in range(200):
             d_out_bot = d_bot(torch.cat((seg_x,),1))
             # Discriminator for generated x's (not ALI)
             d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
-            
+
             print "d loss bot gen", d_loss_bot
 
             d_bot.zero_grad()
@@ -288,13 +289,13 @@ for epoch in range(200):
             d_bot_optimizer.step()
 
             print "train with less g loss bot"
-            
+
             # Generator loss pushing generated x's toward boundary
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
             gen_bot.zero_grad()
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
-            
+
             # Only update generator 10% of time
             # But still backprop every time?
             if random.uniform(0,1) < 0.1:
@@ -327,7 +328,9 @@ for epoch in range(200):
     x_bot_lst = []
     z_bot_lst = []
     for seg in range(0,ns):
-        xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
+        i = seg / ns_per_dim
+        j = seg % ns_per_dim
+        xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
         zs = inf_bot(xs)
         xr = gen_bot(zs)
         x_bot_lst.append(xr)
