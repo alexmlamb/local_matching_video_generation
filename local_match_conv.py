@@ -15,6 +15,7 @@ from gradient_penalty import gradient_penalty
 import random
 from timeit import default_timer as timer
 import pickle
+from math import sqrt
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -49,39 +50,34 @@ boundary_labels = to_var(0.5 * torch.ones(batch_size))
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
 
 mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
+IMAGE_LENGTH = 28
 
 
 data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
 
 nz = 64
-ns = 4
+ns = 16
+ns_per_dim = int(sqrt(ns))
+seg_length = IMAGE_LENGTH / ns_per_dim
 
 print "ns", ns
 
 #(zL,xL) and (zR,xR)
-d_bot = nn.Sequential(
-    nn.Linear(784/ns + nz*0, 256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 1))
+from archs.mnist import Disc_Low
+d_bot = Disc_Low(batch_size, nz)
 
-from D_Top import D_Top
-d_top = D_Top(batch_size, nz*ns, nz, 256)
+# from D_Top import D_Top
+# d_top = D_Top(batch_size, nz*ns, nz, 256)
+from archs.mnist import Disc_High
+d_top = Disc_High(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
-inf_bot = nn.Sequential(
-    nn.Linear(784/ns, 256),
-    LayerNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, 256),
-    LayerNorm1d(256),
-    nn.LeakyReLU(0.2),
-    nn.Linear(256, nz))
+from archs.mnist import Inf_Low
+inf_bot = Inf_Low(batch_size, seg_length, nz)
 
 #(zL->xL) and (zR->xR)
-from Gen_Bot import Gen_Bot
-gen_bot = Gen_Bot(batch_size, nz, 256, 784/ns)
+from archs.mnist import Gen_Low
+gen_bot = Gen_Low(batch_size, seg_length, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -123,21 +119,26 @@ for epoch in range(200):
 
         #====
 
-        images = to_var(images.view(batch_size, -1))
+        print '#####size:', to_var(images).size()
+        # images = to_var(images.view(batch_size, -1))
+        images = to_var(images)
 
         print "images min max", images.min(), images.max()
 
         z_bot_lst = []
-        for seg in range(0,ns):
+        for seg in range(0, ns):
             # Infer lower level z from data
-            xs = images[:,seg*(784/ns):(seg+1)*(784/ns)]
+            i = seg / ns_per_dim
+            j = seg % ns_per_dim
+            xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
+            print 'xs.size():', xs.size()
             zs = inf_bot(xs)
             
             # Feed discriminator real data
             # Discriminator on only x (not ALI)
             d_out_bot = d_bot(torch.cat((xs,),1))
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
-            
+
             # Generator loss pushing real data toward boundary
             g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
 
@@ -192,6 +193,7 @@ for epoch in range(200):
         print "high level rec loss", reconstruction_loss
 
         # Discriminator on only lower z (not ALI)
+        print "###### z_bot:", z_bot
         d_out_tops = d_top(z_bot)
         
         # Higher level discriminator now outputs a list, so sum over that list
