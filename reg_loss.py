@@ -26,8 +26,8 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         if len(p.size()) == 4:
             p = p.mean(1).mean(1).mean(1)
 
-        print "gv shape", gv.size()
-        print "p shape", p.size()
+        #print "gv shape", gv.size()
+        #print "p shape", p.size()
 
     if real == True and D == True:
         cl = -torch.log(p).mean()
@@ -37,8 +37,8 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         else:
             penalty = 0.0
 
-        print "penalty", penalty
-        print "cl", cl
+        #print "penalty", penalty
+        #print "cl", cl
 
         loss = cl + penalty*gamma
     elif real == False and D == True:
@@ -49,8 +49,8 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         else:
             penalty = 0.0
 
-        print "penalty", penalty
-        print "cl", cl
+        #print "penalty", penalty
+        #print "cl", cl
 
         loss = cl + penalty*gamma
     elif real == True and D == False:

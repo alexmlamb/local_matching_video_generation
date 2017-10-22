@@ -100,9 +100,12 @@ class Gen_Bot_Conv32(nn.Module):
             nn.UpsamplingBilinear2d(scale_factor=2),
             nn.Conv2d(64, 3, kernel_size=5, padding=2, stride=1),
             nn.Tanh())
-    def forward(self, z):
-        out = self.l1(z)
-        out = out.view(self.batch_size,512,4,4)
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            out = z
+        else:
+            out = self.l1(z)
+            out = out.view(self.batch_size,512,4,4)
         out = self.l2(out)
         return out
 

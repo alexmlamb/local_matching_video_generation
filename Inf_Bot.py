@@ -78,21 +78,23 @@ class Inf_Bot_Conv32(nn.Module):
         self.batch_size = batch_size
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=2),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.02),
-            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=2),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.02),
             nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
             nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(512),
             nn.LeakyReLU(0.02))
 
         self.l2 = nn.Sequential(
-            nn.Linear(256*4*4, nz))
+            nn.Linear(512*4*4, nz))
 
-    def forward(self, x):
+    def forward(self, x, take_pre=False):
         out = self.l1(x)
+        if take_pre:
+            return out
         out = out.view(self.batch_size, -1)
         out = self.l2(out)
         return out

@@ -42,7 +42,33 @@ class Gen_Top(nn.Module):
 
         return out_final
 
+#Maps from nz to (512,4,4)
+class Gen_Top_4(nn.Module):
+    def __init__(self, batch_size, nz):
+        super(Gen_Top_4, self).__init__()
 
+        self.batch_size = batch_size
+        self.nz = nz
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.BatchNorm1d(512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(nz, 128*4*4))
+
+        self.l2 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=1, padding=0, stride=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 512*5, kernel_size=1, padding=0, stride=1))
+
+        def forward(self, z):
+
+
+            out = self.l1(z).view(128,128,4,4)
+
+            out = self.l2(out)
+
+            return out
 
 
 

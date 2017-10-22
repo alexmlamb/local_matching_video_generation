@@ -8,6 +8,10 @@ def to_var(x):
         x = x.cuda()
     return Variable(x,requires_grad=True)
 
+def denorm(x):
+    out = (x+1)/2
+    return out.clamp(0,1)
+
 
 def make_dir_if_not_exists(path):
     """Make directory if doesn't already exists"""
