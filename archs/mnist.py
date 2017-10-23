@@ -7,7 +7,11 @@ from operator import mul
 # from utils import to_var
 # from LayerNorm1d import LayerNorm1d
 
-NUM_CHANNELS = 1
+dataset = 'lsun'
+if dataset == 'mnist':  
+    NUM_CHANNELS = 1
+elif dataset == 'lsun':
+    NUM_CHANNELS = 3
 PARAMS7 = {
     'num_kernels': [64, 128],
     'kernel_size': [3, 3],
@@ -17,6 +21,12 @@ PARAMS7 = {
 PARAMS14 = {
     'num_kernels': [64, 128],
     'kernel_size': [4, 4],
+    'padding': [2, 2],
+    'stride': [2, 2],
+}
+PARAMS16 = {
+    'num_kernels': [64, 128],
+    'kernel_size': [6, 6],
     'padding': [2, 2],
     'stride': [2, 2],
 }
@@ -33,6 +43,8 @@ class Inf_Low(nn.Module):
             params = PARAMS7
         elif nx == 14:
             params = PARAMS14
+        elif nx == 16:
+            params = PARAMS16
         else:
             raise ValueError('Unexpected nx: %d' % nx)
         num_kernels = params['num_kernels']
@@ -78,6 +90,8 @@ class Gen_Low(nn.Module):
             params = PARAMS7
         elif nx == 14:
             params = PARAMS14
+        elif nx == 16:
+            params = PARAMS16
         else:
             raise ValueError('Unexpected nx: %d' % nx)
         num_kernels = params['num_kernels']
@@ -141,7 +155,7 @@ class Disc_Low(nn.Module):
         #     nn.LeakyReLU(0.02))
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(1, 128, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(NUM_CHANNELS, 128, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
         self.l2 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),

@@ -26,9 +26,10 @@ Then implement a critic.
 slurm_name = os.environ["SLURM_JOB_ID"]
 DATASET = 'lsun_bedroom'
 DATA_DIR = os.path.join(os.path.abspath('data'), DATASET)
-EXP_DIR = os.path.join(os.path.abspath('exp'), DATASET, slurm_name)
+EXP_DIR = os.path.join('scratch', 'exp', DATASET, slurm_name)
 SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
+Z_NORM_MULT = None
 
 start_time = timer()
 
@@ -41,31 +42,44 @@ def denorm(x):
 def torch_to_norm(zs):
     return zs.norm(2).data.cpu().numpy()[0]
 
-
-batch_size = 100
-
-real_labels = to_var(torch.ones(batch_size))
-fake_labels = to_var(torch.zeros(batch_size))
-boundary_labels = to_var(0.5 * torch.ones(batch_size))
-
-transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
-
 if DATASET == 'mnist':
+    batch_size = 100
+    IMAGE_LENGTH = 28
+    NUM_CHANNELS = 1
     print 'Loading MNIST dataset'
+    transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
     dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
     nz = 64
     ns = 4
-    IMAGE_LENGTH = 28
 elif DATASET == 'lsun_bedroom':
+    batch_size = 32
+    IMAGE_LENGTH = 64
+    NUM_CHANNELS = 3
     print 'Loading LSUN bedrooms dataset'
-    dataset = datasets.LSUN('/data/lisa/data/lsun', classes=['bedroom_train'], transform=transform)
+    dataset = datasets.LSUN('/scratch/nealbray/lsun', classes=['bedroom_train'],
+                            transform=transforms.Compose([
+                            transforms.Scale(IMAGE_LENGTH),
+                            transforms.CenterCrop(IMAGE_LENGTH),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                        ]))
     nz = 64
     ns = 16
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
 
+real_labels = to_var(torch.ones(batch_size))
+fake_labels = to_var(torch.zeros(batch_size))
+boundary_labels = to_var(0.5 * torch.ones(batch_size))
+
+
 data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
 ns_per_dim = int(sqrt(ns))
+
+# for i, (images, _) in enumerate(data_loader):
+#     print images.size()
+# raise Exception('image size printed')    
+
 seg_length = IMAGE_LENGTH / ns_per_dim
 
 print "ns", ns
@@ -324,11 +338,11 @@ for epoch in range(200):
 
     fake_images = torch.cat(gen_x_lst, 1)
 
-    fake_images = fake_images.view(fake_images.size(0), 1, 28, 28)
+    fake_images = fake_images.view(fake_images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
     save_image(denorm(fake_images.data), os.path.join(EXP_DIR, 'fake_images%03d.png' % epoch))
 
 
-    real_images = images.view(images.size(0), 1, 28, 28)
+    real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
     save_image(denorm(real_images.data), os.path.join(EXP_DIR, 'real_images%03d.png' % epoch))
 
 
@@ -346,7 +360,7 @@ for epoch in range(200):
 
     rec_images_bot = torch.cat(x_bot_lst, 1)
 
-    rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), 1, 28, 28)
+    rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
     save_image(denorm(rec_images_bot.data), os.path.join(EXP_DIR, 'rec_images_bot%03d.png' % epoch))
 
     z_bot = torch.cat(z_bot_lst, 1)
@@ -360,7 +374,7 @@ for epoch in range(200):
 
     rec_images_top = torch.cat(gen_x_lst, 1)
 
-    rec_images_top = rec_images_top.view(rec_images_top.size(0), 1, 28, 28)
+    rec_images_top = rec_images_top.view(rec_images_top.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
     save_image(denorm(rec_images_top.data), os.path.join(EXP_DIR, 'rec_images_top%03d.png' % epoch))
 
 end_time = timer()
