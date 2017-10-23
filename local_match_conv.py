@@ -24,8 +24,9 @@ Then implement a critic.
 '''
 
 slurm_name = os.environ["SLURM_JOB_ID"]
-DATA_DIR = os.path.abspath('data')
-EXP_DIR = os.path.join(os.path.abspath('exp'), slurm_name)
+DATASET = 'lsun_bedroom'
+DATA_DIR = os.path.join(os.path.abspath('data'), DATASET)
+EXP_DIR = os.path.join(os.path.abspath('exp'), DATASET, slurm_name)
 SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 
@@ -49,14 +50,21 @@ boundary_labels = to_var(0.5 * torch.ones(batch_size))
 
 transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(mean=(0.5,0.5,0.5), std=(0.5,0.5,0.5))])
 
-mnist = datasets.MNIST(root='./data/', train=True, download=True, transform=transform)
-IMAGE_LENGTH = 28
+if DATASET == 'mnist':
+    print 'Loading MNIST dataset'
+    dataset = datasets.MNIST(root=DATA_DIR, train=True, download=True, transform=transform)
+    nz = 64
+    ns = 4
+    IMAGE_LENGTH = 28
+elif DATASET == 'lsun_bedroom':
+    print 'Loading LSUN bedrooms dataset'
+    dataset = datasets.LSUN('/data/lisa/data/lsun', classes=['bedroom_train'], transform=transform)
+    nz = 64
+    ns = 16
+else:
+    raise ValueError('Unsupported dataset: %s' % DATASET)
 
-
-data_loader = torch.utils.data.DataLoader(dataset=mnist, batch_size=batch_size, shuffle=True)
-
-nz = 64
-ns = 16
+data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
 ns_per_dim = int(sqrt(ns))
 seg_length = IMAGE_LENGTH / ns_per_dim
 
