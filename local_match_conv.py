@@ -26,10 +26,12 @@ Then implement a critic.
 slurm_name = os.environ["SLURM_JOB_ID"]
 DATASET = 'lsun_bedroom'
 DATA_DIR = os.path.join(os.path.abspath('data'), DATASET)
-EXP_DIR = os.path.join('scratch', 'exp', DATASET, slurm_name)
+OUT_DIR = os.path.join('/scratch/nealbray/loc', DATASET, slurm_name)
+MODELS_DIR = os.path.join(OUT_DIR, 'saved_models')
 SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
+CHECKPOINT_INTERVAL = 10 * 60
 
 start_time = timer()
 
@@ -129,6 +131,7 @@ gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
 
 z_bot_norms = []
 z_top_norms = []
+checkpoint_i = 1
 for epoch in range(200):
     for i, (images, _) in enumerate(data_loader):
 
@@ -324,58 +327,70 @@ for epoch in range(200):
                 gen_bot_optimizer.step()
 
         #print d_out_bot
-
-    make_dir_if_not_exists(EXP_DIR)
-
-    # Log z norms
-    z_bot_norm = map(torch_to_norm, z_bot_lst)
-    z_bot_norms.append(max(z_bot_norm))
-    z_top_norm = torch_to_norm(z_top)
-    z_top_norms.append(z_top_norm)
-    d = {'z_bot_norms': z_bot_norms, 'z_top_norms': z_top_norms}
-    with open(os.path.join(EXP_DIR, 'z_norms.pkl'), 'wb') as f:
-        pickle.dump(d, f)
-
-    fake_images = torch.cat(gen_x_lst, 1)
-
-    fake_images = fake_images.view(fake_images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-    save_image(denorm(fake_images.data), os.path.join(EXP_DIR, 'fake_images%03d.png' % epoch))
-
-
-    real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-    save_image(denorm(real_images.data), os.path.join(EXP_DIR, 'real_images%03d.png' % epoch))
-
-
-    #z_bot_lst = []
-    x_bot_lst = []
-    z_bot_lst = []
-    for seg in range(0,ns):
-        i = seg / ns_per_dim
-        j = seg % ns_per_dim
-        xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
-        zs = inf_bot(xs)
-        xr = gen_bot(zs)
-        x_bot_lst.append(xr)
-        z_bot_lst.append(zs)
-
-    rec_images_bot = torch.cat(x_bot_lst, 1)
-
-    rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-    save_image(denorm(rec_images_bot.data), os.path.join(EXP_DIR, 'rec_images_bot%03d.png' % epoch))
-
-    z_bot = torch.cat(z_bot_lst, 1)
-    z_top = inf_top(z_bot)
-    z_bot = gen_top(z_top)
-
-    gen_x_lst = []
-    for seg in range(0,ns):
-        seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-        gen_x_lst.append(gen_bot(seg_z))
-
-    rec_images_top = torch.cat(gen_x_lst, 1)
-
-    rec_images_top = rec_images_top.view(rec_images_top.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-    save_image(denorm(rec_images_top.data), os.path.join(EXP_DIR, 'rec_images_top%03d.png' % epoch))
+        elapsed = timer() - start_time
+        if elapsed > checkpoint_i * CHECKPOINT_INTERVAL:
+            print 'Writing images and checkpoints'
+            checkpoint_i += 1
+            make_dir_if_not_exists(OUT_DIR)
+            make_dir_if_not_exists(MODELS_DIR)
+        
+            # Log z norms
+            z_bot_norm = map(torch_to_norm, z_bot_lst)
+            z_bot_norms.append(max(z_bot_norm))
+            z_top_norm = torch_to_norm(z_top)
+            z_top_norms.append(z_top_norm)
+            d = {'z_bot_norms': z_bot_norms, 'z_top_norms': z_top_norms}
+            with open(os.path.join(OUT_DIR, 'z_norms.pkl'), 'wb') as f:
+                pickle.dump(d, f)
+        
+            fake_images = torch.cat(gen_x_lst, 1)
+        
+            fake_images = fake_images.view(fake_images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(fake_images.data), os.path.join(OUT_DIR, 'fake_images%03d.png' % epoch))
+        
+        
+            real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(real_images.data), os.path.join(OUT_DIR, 'real_images%03d.png' % epoch))
+        
+        
+            #z_bot_lst = []
+            x_bot_lst = []
+            z_bot_lst = []
+            for seg in range(0,ns):
+                i = seg / ns_per_dim
+                j = seg % ns_per_dim
+                xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
+                zs = inf_bot(xs)
+                xr = gen_bot(zs)
+                x_bot_lst.append(xr)
+                z_bot_lst.append(zs)
+        
+            rec_images_bot = torch.cat(x_bot_lst, 1)
+        
+            rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(rec_images_bot.data), os.path.join(OUT_DIR, 'rec_images_bot%03d.png' % epoch))
+        
+            z_bot = torch.cat(z_bot_lst, 1)
+            z_top = inf_top(z_bot)
+            z_bot = gen_top(z_top)
+        
+            gen_x_lst = []
+            for seg in range(0,ns):
+                seg_z = z_bot[:,seg*nz:(seg+1)*nz]
+                gen_x_lst.append(gen_bot(seg_z))
+        
+            rec_images_top = torch.cat(gen_x_lst, 1)
+        
+            rec_images_top = rec_images_top.view(rec_images_top.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(rec_images_top.data), os.path.join(OUT_DIR, 'rec_images_top%03d.png' % epoch))
+            
+            # Checkpoint
+            torch.save(gen_bot, os.path.join(MODELS_DIR, '%s_genbot.pt' % slurm_name))
+            torch.save(gen_top, os.path.join(MODELS_DIR, '%s_gentop.pt' % slurm_name))
+            torch.save(d_bot, os.path.join(MODELS_DIR, '%s_dbot.pt' % slurm_name))
+            torch.save(d_top, os.path.join(MODELS_DIR, '%s_dtop.pt' % slurm_name))
+            torch.save(inf_bot, os.path.join(MODELS_DIR, '%s_infbot.pt' % slurm_name))
+            torch.save(inf_top, os.path.join(MODELS_DIR, '%s_inftop.pt' % slurm_name))
 
 end_time = timer()
 elapsed = end_time - start_time
