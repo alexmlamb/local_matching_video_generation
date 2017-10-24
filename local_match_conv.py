@@ -32,7 +32,7 @@ MODELS_DIR = os.path.join(OUT_DIR, 'saved_models')
 SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
-CHECKPOINT_INTERVAL = 10 * 60
+CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
 
 start_time = timer()
@@ -355,10 +355,17 @@ for epoch in range(200):
             with open(os.path.join(OUT_DIR, 'z_norms.pkl'), 'wb') as f:
                 pickle.dump(d, f)
         
-            fake_images = torch.cat(gen_x_lst, 1)
+            # fake_images = torch.cat(gen_x_lst, 1)
+            # fake_images = fake_images.view(fake_images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            
+            fake_images = torch.zeros(batch_size, NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            for seg in range(0, ns):
+                x_seg = gen_x_lst[seg]
+                i = seg / ns_per_dim
+                j = seg % ns_per_dim
+                fake_images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length] = x_seg.data
         
-            fake_images = fake_images.view(fake_images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-            save_image(denorm(fake_images.data), os.path.join(OUT_DIR, 'fake_images%05d.png' % checkpoint_i))
+            save_image(denorm(fake_images), os.path.join(OUT_DIR, 'fake_images%05d.png' % checkpoint_i))
         
         
             real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
