@@ -16,6 +16,7 @@ import random
 from timeit import default_timer as timer
 import pickle
 from math import sqrt
+from reg_loss import gan_loss
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -167,10 +168,13 @@ for epoch in range(200):
             # Discriminator on only x (not ALI)
             d_out_bot = d_bot(xs, zs)
             print 'd_out_bot.size():', d_out_bot.size()
-            d_loss_bot = ((d_out_bot - real_labels)**2).mean()
+            # d_loss_bot = ((d_out_bot - real_labels)**2).mean()
+            d_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=True, use_penalty=True, grad_inp=xs, gamma=1.0) + \
+                gan_loss(pre_sig=d_out_bot, real=True, D=True, use_penalty=True, grad_inp=zs, gamma=1.0)
 
             # Generator loss pushing real data toward boundary
-            g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            # g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            g_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
 
             # Add z norm penalty
             if Z_NORM_MULT is not None:
@@ -318,7 +322,9 @@ for epoch in range(200):
             gen_x_lst.append(seg_x)
             d_out_bot = d_bot(seg_x, seg_z)
             # Discriminator for generated x's (not ALI)
-            d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
+            # d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
+            d_loss_bot = gan_loss(pre_sig=d_out_bot, real=False, D=True, use_penalty=True, grad_inp=seg_x, gamma=1.0) + \
+                gan_loss(pre_sig=d_out_bot, real=False, D=True, use_penalty=True, grad_inp=seg_z, gamma=1.0)
 
             print "d loss bot gen", d_loss_bot
 
@@ -329,7 +335,9 @@ for epoch in range(200):
             print "train with less g loss bot"
 
             # Generator loss pushing generated x's toward boundary
-            g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            # g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            g_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            
             gen_bot.zero_grad()
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
