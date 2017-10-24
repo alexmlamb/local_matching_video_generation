@@ -73,9 +73,10 @@ elif DATASET == 'lsun_bedroom':
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
 
-real_labels = to_var(torch.ones(batch_size))
-fake_labels = to_var(torch.zeros(batch_size))
-boundary_labels = to_var(0.5 * torch.ones(batch_size))
+NUM_DISC_OUTPUTS = 4
+real_labels = to_var(torch.ones(batch_size, NUM_DISC_OUTPUTS))
+fake_labels = to_var(torch.zeros(batch_size, NUM_DISC_OUTPUTS))
+boundary_labels = to_var(0.5 * torch.ones(batch_size, NUM_DISC_OUTPUTS))
 
 
 data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
@@ -164,6 +165,7 @@ for epoch in range(200):
             # Feed discriminator real data
             # Discriminator on only x (not ALI)
             d_out_bot = d_bot(xs, zs)
+            print 'd_out_bot.size():', d_out_bot.size()
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
 
             # Generator loss pushing real data toward boundary
@@ -339,7 +341,6 @@ for epoch in range(200):
         elapsed = timer() - start_time
         if elapsed > checkpoint_i * CHECKPOINT_INTERVAL:
             print 'Writing images and checkpoints'
-            checkpoint_i += 1
             make_dir_if_not_exists(OUT_DIR)
             make_dir_if_not_exists(MODELS_DIR)
         
@@ -405,6 +406,8 @@ for epoch in range(200):
                 torch.save(gen_top, os.path.join(MODELS_DIR, '%s_gentop.pt' % slurm_name))
                 torch.save(d_top, os.path.join(MODELS_DIR, '%s_dtop.pt' % slurm_name))
                 torch.save(inf_top, os.path.join(MODELS_DIR, '%s_inftop.pt' % slurm_name))
+                
+            checkpoint_i += 1
                 
 
 end_time = timer()
