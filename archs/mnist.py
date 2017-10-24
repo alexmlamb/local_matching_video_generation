@@ -7,7 +7,11 @@ from operator import mul
 # from utils import to_var
 # from LayerNorm1d import LayerNorm1d
 
-NUM_CHANNELS = 1
+dataset = 'lsun'
+if dataset == 'mnist':  
+    NUM_CHANNELS = 1
+elif dataset == 'lsun':
+    NUM_CHANNELS = 3
 PARAMS7 = {
     'num_kernels': [64, 128],
     'kernel_size': [3, 3],
@@ -17,6 +21,12 @@ PARAMS7 = {
 PARAMS14 = {
     'num_kernels': [64, 128],
     'kernel_size': [4, 4],
+    'padding': [2, 2],
+    'stride': [2, 2],
+}
+PARAMS16 = {
+    'num_kernels': [64, 128],
+    'kernel_size': [6, 6],
     'padding': [2, 2],
     'stride': [2, 2],
 }
@@ -33,6 +43,8 @@ class Inf_Low(nn.Module):
             params = PARAMS7
         elif nx == 14:
             params = PARAMS14
+        elif nx == 16:
+            params = PARAMS16
         else:
             raise ValueError('Unexpected nx: %d' % nx)
         num_kernels = params['num_kernels']
@@ -49,12 +61,12 @@ class Inf_Low(nn.Module):
         self.conv1 = nn.Sequential(
             nn.Conv2d(NUM_CHANNELS, num_kernels[0], kernel_size=kernel_size[0],
                       padding=padding[0], stride=stride[0]),
-            nn.LeakyReLU(0.2))
+            nn.LeakyReLU(0.02))
 
         self.conv2 = nn.Sequential(
             nn.Conv2d(num_kernels[0], num_kernels[1], kernel_size=kernel_size[1],
                       padding=padding[1], stride=stride[1]),
-            nn.LeakyReLU(0.2))
+            nn.LeakyReLU(0.02))
 
         self.fc = nn.Linear(fc_input_size, nz)
 
@@ -78,6 +90,8 @@ class Gen_Low(nn.Module):
             params = PARAMS7
         elif nx == 14:
             params = PARAMS14
+        elif nx == 16:
+            params = PARAMS16
         else:
             raise ValueError('Unexpected nx: %d' % nx)
         num_kernels = params['num_kernels']
@@ -93,12 +107,14 @@ class Gen_Low(nn.Module):
         print 'Gen conv_out_shape:', conv_out_shape
         fc_output_size = reduce(mul, conv_out_shape, 1)
 
-        self.fc = nn.Linear(nz, fc_output_size)
+        self.fc = nn.Sequential(
+            nn.Linear(nz, fc_output_size),
+            nn.LeakyReLU(0.02))
 
         self.convT1 = nn.Sequential(
             nn.ConvTranspose2d(num_kernels[-1], num_kernels[-2], kernel_size=kernel_size[-1],
                                padding=padding[-1], stride=stride[-1]),
-            nn.LeakyReLU(0.2))
+            nn.LeakyReLU(0.02))
 
         self.convT2 = nn.Sequential(
             nn.ConvTranspose2d(num_kernels[-2], NUM_CHANNELS, kernel_size=kernel_size[-2],
@@ -124,49 +140,52 @@ class Gen_Low(nn.Module):
 
 
 class Disc_Low(nn.Module):
-    def __init__(self, batch_size, nz):
+    def __init__(self, batch_size, nx, nz):
         super(Disc_Low, self).__init__()
         self.batch_size = batch_size
+        self.nconv1 = compute_conv_output_size(nx, 5, 2, 2)
+        self.nconv2 = compute_conv_output_size(self.nconv1, 5, 2, 2)
+        self.nconv3 = compute_conv_output_size(self.nconv2, 5, 2, 2)
 
-        # self.zo2 = nn.Sequential(
-        #     nn.Linear(nz, 512),
-        #     nn.LeakyReLU(0.02),
-        #     nn.Linear(512, 256*8*8),
-        #     nn.LeakyReLU(0.02))
-        # 
-        # self.zo3 = nn.Sequential(
-        #     nn.Linear(nz, 512),
-        #     nn.LeakyReLU(0.02),
-        #     nn.Linear(512, 512*4*4),
-        #     nn.LeakyReLU(0.02))
+        self.zo2 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 256 * self.nconv2 * self.nconv2),
+            nn.LeakyReLU(0.02))
+
+        self.zo3 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 512 * self.nconv3 * self.nconv3),
+            nn.LeakyReLU(0.02))
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(1, 128, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(NUM_CHANNELS, 128, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
         self.l2 = nn.Sequential(
             nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
 
-        self.l3 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
-            nn.LeakyReLU(0.02))
+        # self.l3 = nn.Sequential(
+        #     nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
+        #     nn.LeakyReLU(0.02))
 
         self.l_end = nn.Sequential(
-            nn.Conv2d(512, 1, kernel_size=5, padding=2, stride=2))
+            nn.Conv2d(256, 1, kernel_size=5, padding=2, stride=2))
 
-    def forward(self, x):
-    # def forward(self, x, z):
+    # def forward(self, x):
+    def forward(self, x, z):
 
-        # zo2 = self.zo2(z).view(self.batch_size,256,8,8) #goes to 256x8x8
-        # zo3 = self.zo3(z).view(self.batch_size,512,4,4)
+        zo2 = self.zo2(z).view(self.batch_size, 256, self.nconv2, self.nconv2)
+        # zo3 = self.zo3(z).view(self.batch_size, 512, self.nconv3, self.nconv3)
 
         out = self.l1(x)
-        # out = self.l2(out) + zo2
+        out = self.l2(out) + zo2
         # out = self.l3(out) + zo3
-        out = self.l2(out)
-        out = self.l3(out)
+        # out = self.l2(out)
+        # out = self.l3(out)
         out = self.l_end(out)
-        out = out.view(self.batch_size,-1)
+        out = out.view(self.batch_size, -1)
         return out
 
 
