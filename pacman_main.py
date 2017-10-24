@@ -15,9 +15,9 @@ import random
 from reg_loss import gan_loss
 from LayerNorm1d import LayerNorm1d
 
-load_D = True
-load_G = True
-load_I = True
+load_D = False
+load_G = False
+load_I = False
 
 file_D = "saved_models/62758_Dbot.pt"
 file_G = "saved_models/62758_Gbot.pt"
@@ -64,15 +64,15 @@ if load_G:
     print "loading from", file_G
     G = torch.load(file_G)
 else:
-    from Gen_Bot import Gen_Bot_Conv32
-    G = Gen_Bot_Conv32(batch_size, 64)
+    from Gen_Bot import Gen_Bot_Conv32_deepbottleneck
+    G = Gen_Bot_Conv32_deepbottleneck(batch_size, 64)
 
 if load_I:
     print "loading from", file_I
     I = torch.load(file_I)
 else:
-    from Inf_Bot import Inf_Bot_Conv32
-    I = Inf_Bot_Conv32(batch_size, 64)
+    from Inf_Bot import Inf_Bot_Conv32_deepbottleneck
+    I = Inf_Bot_Conv32_deepbottleneck(batch_size, 64)
 
 # Generator 
 #G = nn.Sequential(
@@ -85,10 +85,12 @@ else:
 
 
 if torch.cuda.is_available():
+    print "cuda available"
     D = D.cuda()
     G = G.cuda()
     I = I.cuda()
-
+else:
+    raise Exception('cuda not available')
 
 d_optimizer = torch.optim.Adam(D.parameters(), lr=0.0001, betas=(0.5,0.99))
 g_optimizer = torch.optim.Adam(G.parameters(), lr=0.0001, betas=(0.5,0.99))
@@ -117,6 +119,8 @@ for epoch in range(2000):
         outputs = D(images, inf)
 
         d_loss_real = gan_loss(pre_sig=outputs, real=True, D=True, use_penalty=use_penalty,grad_inp=images,gamma=1.0) + gan_loss(pre_sig=outputs, real=True, D=True, use_penalty=use_penalty,grad_inp=inf,gamma=1.0)
+
+        #D(x,z).  
 
         real_score = outputs
 

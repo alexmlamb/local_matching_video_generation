@@ -18,8 +18,10 @@ Trains a higher level model in isolation using a pre-trained generator and infer
 
 '''
 
-GB = torch.load('saved_models/63205_Gbot.pt')
-IB = torch.load('saved_models/63205_Ibot.pt')
+GB = torch.load('saved_models/65157_Gbot.pt')
+IB = torch.load('saved_models/65157_Ibot.pt')
+
+print "GB", GB
 
 IB = IB.cuda()
 GB = GB.cuda()
@@ -37,12 +39,15 @@ pacman_data = np.load('pacman_data_20k.npy')
 #    nn.LeakyReLU(0.02),
 #    nn.Linear(1024, 4*4*512*5))
 
-from Gen_Top import Gen_Top_4
-Gh = Gen_Top_4(128,64)
+from Gen_Top import Gen_Top_fc
+Gh = Gen_Top_fc(128,128,4*4*32*5)
+
+#from Gen_Top import Gen_Top_4
+#Gh = Gen_Top_4(128,64)
 
 #Discriminator
 Dh = nn.Sequential(
-    nn.Linear(4*4*512*5, 1024),
+    nn.Linear(4*4*32*5, 1024),
     #nn.BatchNorm1d(512),
     nn.LeakyReLU(0.02),
     nn.Linear(1024, 1024),
@@ -53,12 +58,13 @@ Dh = nn.Sequential(
 if torch.cuda.is_available():
     Dh = Dh.cuda()
     Gh = Gh.cuda()
-
+else:
+    raise Exception("cuda not available")
 
 dh_optimizer = torch.optim.Adam(Dh.parameters(), lr=0.0001, betas=(0.5,0.99))
 gh_optimizer = torch.optim.Adam(Gh.parameters(), lr=0.0001, betas=(0.5,0.99))
 
-for epoch in range(0,4000):
+for epoch in range(0,1000):
 
     print "epoch", epoch
 
@@ -73,6 +79,7 @@ for epoch in range(0,4000):
 
         real = to_var(torch.cat(pacman_frame_lst,1).data)
 
+
         real_score = Dh(real)
 
         d_loss_real = gan_loss(pre_sig=real_score, real=True, D=True, use_penalty=True,grad_inp=real,gamma=1.0)
@@ -84,9 +91,11 @@ for epoch in range(0,4000):
 
 
         #GENERATION ===========================
-        z_raw = to_var(torch.randn(128,64))
+        z_raw = to_var(torch.randn(128,128))
 
         gen_val = Gh(z_raw)
+
+        print gen_val.size()
 
         fake_score = Dh(gen_val)
 
@@ -96,7 +105,7 @@ for epoch in range(0,4000):
         d_loss_fake.backward(retain_graph=True)
         dh_optimizer.step()
     
-        g_loss_fake = gan_loss(pre_sig=fake_score, real=False, D=False, use_penalty=False,grad_inp=None,gamma=None)
+        g_loss_fake = gan_loss(pre_sig=fake_score, real=False, D=False, use_penalty=False,grad_inp=None,gamma=None,bgan=True)
 
         Dh.zero_grad()
         Gh.zero_grad()
@@ -107,14 +116,14 @@ for epoch in range(0,4000):
     print "real score", real_score.mean()
     
     for t in range(0,5):
-        one_step = gen_val[:,(512*4*4)*t:(512*4*4)*(t+1)]
-        one_step = one_step.contiguous().view(128,512,4,4)
+        one_step = gen_val[:,(32*4*4)*t:(32*4*4)*(t+1)]
+        one_step = one_step.contiguous().view(128,32,4,4)
         img = GB(one_step,give_pre=True)
 
         save_image(denorm(img.data), 'data/%s_fake_%d.png' % (slurm_name,t))
 
-        one_step_real = real[:,(512*4*4)*t:(512*4*4)*(t+1)]
-        one_step_real = one_step_real.contiguous().view(128,512,4,4)
+        one_step_real = real[:,(32*4*4)*t:(32*4*4)*(t+1)]
+        one_step_real = one_step_real.contiguous().view(128,32,4,4)
         img = GB(one_step_real,give_pre=True)
 
         save_image(denorm(img.data), 'data/%s_realrec_%d.png' % (slurm_name,t))
