@@ -34,6 +34,7 @@ Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
+REC_PENALTY = True
 
 start_time = timer()
 
@@ -185,7 +186,7 @@ for epoch in range(200):
             print 're.size():', reconstruction.size()
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if False:
+            if REC_PENALTY:
                 g_loss_bot += rec_loss
                 print "training with reconstruction loss"
             else:
@@ -205,6 +206,7 @@ for epoch in range(200):
             # Only do update 10% of the time
             # But still backprop every time?
             if random.uniform(0,1) < 0.1:
+            # if random.uniform(0,1) < 1.0:
                 gen_bot_optimizer.step()
                 inf_bot_optimizer.step()
 
@@ -244,7 +246,7 @@ for epoch in range(200):
             
             #d_loss_top += 0.1 * gradient_penalty(d_out_top.norm(2), z_bot)
             
-            if True:
+            if REC_PENALTY:
                 print "optimizing for high level rec loss"
                 g_loss_top += reconstruction_loss
             else:
@@ -367,27 +369,26 @@ for epoch in range(200):
         
             save_image(denorm(fake_images), os.path.join(OUT_DIR, 'fake_images%05d.png' % checkpoint_i))
         
-        
             real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
             save_image(denorm(real_images.data), os.path.join(OUT_DIR, 'real_images%05d.png' % checkpoint_i))
-        
-        
-            #z_bot_lst = []
-            x_bot_lst = []
-            z_bot_lst = []
+
+            # x_bot_lst = []
+            # z_bot_lst = []
+            rec_images_bot = torch.zeros(batch_size, NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
             for seg in range(0,ns):
                 i = seg / ns_per_dim
                 j = seg % ns_per_dim
                 xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
                 zs = inf_bot(xs)
                 xr = gen_bot(zs)
-                x_bot_lst.append(xr)
-                z_bot_lst.append(zs)
-        
-            rec_images_bot = torch.cat(x_bot_lst, 1)
-        
-            rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-            save_image(denorm(rec_images_bot.data), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
+                rec_images_bot[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length] = xr.data
+                # x_bot_lst.append(xr)
+                # z_bot_lst.append(zs)
+
+            # rec_images_bot = torch.cat(x_bot_lst, 1)
+            # 
+            # rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(rec_images_bot), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
         
             if not LOWER_ONLY:
                 z_bot = torch.cat(z_bot_lst, 1)
