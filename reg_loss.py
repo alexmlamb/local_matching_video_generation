@@ -9,7 +9,7 @@ import torch
 from torch.autograd import grad, Variable
 import numpy as np
 
-def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
+def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0,bgan=False):
 
     p = torch.sigmoid(pre_sig)
 
@@ -57,13 +57,19 @@ def gan_loss(pre_sig, real, D, use_penalty,grad_inp=None,gamma=1.0):
         assert grad_inp is None
         assert use_penalty == False
 
-        loss = -torch.log(1-p).mean()
+        if bgan:
+            loss = (torch.log(p/(1-p))**2).mean()
+        else:
+            loss = -torch.log(1-p).mean()
 
     elif real == False and D == False:
         assert grad_inp is None
         assert use_penalty == False
         
-        loss = -torch.log(p).mean()
+        if bgan:
+            loss = (torch.log(p/(1-p))**2).mean()
+        else:
+            loss = -torch.log(p).mean()
 
     return loss
 
