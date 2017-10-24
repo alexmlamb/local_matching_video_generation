@@ -32,7 +32,7 @@ MODELS_DIR = os.path.join(OUT_DIR, 'saved_models')
 SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
-CHECKPOINT_INTERVAL = .5 * 60
+CHECKPOINT_INTERVAL = 10 * 60
 LOWER_ONLY = True
 
 start_time = timer()
@@ -91,7 +91,7 @@ print "ns", ns
 
 #(zL,xL) and (zR,xR)
 from archs.mnist import Disc_Low
-d_bot = Disc_Low(batch_size, nz)
+d_bot = Disc_Low(batch_size, seg_length, nz)
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
@@ -163,7 +163,7 @@ for epoch in range(200):
             
             # Feed discriminator real data
             # Discriminator on only x (not ALI)
-            d_out_bot = d_bot(torch.cat((xs,),1))
+            d_out_bot = d_bot(xs, zs)
             d_loss_bot = ((d_out_bot - real_labels)**2).mean()
 
             # Generator loss pushing real data toward boundary
@@ -183,7 +183,7 @@ for epoch in range(200):
             print 're.size():', reconstruction.size()
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if True:
+            if False:
                 g_loss_bot += rec_loss
                 print "training with reconstruction loss"
             else:
@@ -312,7 +312,7 @@ for epoch in range(200):
             seg_x = gen_bot(seg_z)
 
             gen_x_lst.append(seg_x)
-            d_out_bot = d_bot(torch.cat((seg_x,),1))
+            d_out_bot = d_bot(seg_x, seg_z)
             # Discriminator for generated x's (not ALI)
             d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
 

@@ -138,21 +138,24 @@ class Gen_Low(nn.Module):
 
 
 class Disc_Low(nn.Module):
-    def __init__(self, batch_size, nz):
+    def __init__(self, batch_size, nx, nz):
         super(Disc_Low, self).__init__()
         self.batch_size = batch_size
-
-        # self.zo2 = nn.Sequential(
-        #     nn.Linear(nz, 512),
-        #     nn.LeakyReLU(0.02),
-        #     nn.Linear(512, 256*8*8),
-        #     nn.LeakyReLU(0.02))
-        # 
-        # self.zo3 = nn.Sequential(
-        #     nn.Linear(nz, 512),
-        #     nn.LeakyReLU(0.02),
-        #     nn.Linear(512, 512*4*4),
-        #     nn.LeakyReLU(0.02))
+        self.nconv1 = compute_conv_output_size(nx, 5, 2, 2)
+        self.nconv2 = compute_conv_output_size(self.nconv1, 5, 2, 2)
+        self.nconv3 = compute_conv_output_size(self.nconv2, 5, 2, 2)
+        
+        self.zo2 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 256 * self.nconv2 * self.nconv2),
+            nn.LeakyReLU(0.02))
+        
+        self.zo3 = nn.Sequential(
+            nn.Linear(nz, 512),
+            nn.LeakyReLU(0.02),
+            nn.Linear(512, 512 * self.nconv3 * self.nconv3),
+            nn.LeakyReLU(0.02))
 
         self.l1 = nn.Sequential(
             nn.Conv2d(NUM_CHANNELS, 128, kernel_size=5, padding=2, stride=2),
@@ -168,17 +171,17 @@ class Disc_Low(nn.Module):
         self.l_end = nn.Sequential(
             nn.Conv2d(512, 1, kernel_size=5, padding=2, stride=2))
 
-    def forward(self, x):
-    # def forward(self, x, z):
+    # def forward(self, x):
+    def forward(self, x, z):
 
-        # zo2 = self.zo2(z).view(self.batch_size,256,8,8) #goes to 256x8x8
-        # zo3 = self.zo3(z).view(self.batch_size,512,4,4)
+        zo2 = self.zo2(z).view(self.batch_size, 256, self.nconv2, self.nconv2)
+        zo3 = self.zo3(z).view(self.batch_size, 512, self.nconv3, self.nconv3)
 
         out = self.l1(x)
-        # out = self.l2(out) + zo2
-        # out = self.l3(out) + zo3
-        out = self.l2(out)
-        out = self.l3(out)
+        out = self.l2(out) + zo2
+        out = self.l3(out) + zo3
+        # out = self.l2(out)
+        # out = self.l3(out)
         out = self.l_end(out)
         out = out.view(self.batch_size,-1)
         return out
