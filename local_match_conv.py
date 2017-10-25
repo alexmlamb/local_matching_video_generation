@@ -37,6 +37,7 @@ CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
 REC_PENALTY = True
 REC_SHORTCUT = True
+HIGH_SHORTCUT = True
 
 start_time = timer()
 
@@ -71,7 +72,7 @@ elif DATASET == 'lsun_bedroom':
                             transforms.ToTensor(),
                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                         ]))
-    nz = 64
+    nz = 128
     ns = 16
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
@@ -94,21 +95,25 @@ seg_length = IMAGE_LENGTH / ns_per_dim
 print "ns", ns
 
 #(zL,xL) and (zR,xR)
-from archs.mnist import Disc_Low
+from archs.lsun import Disc_Low
 d_bot = Disc_Low(batch_size, seg_length, nz)
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
-from archs.mnist import Disc_High
+from archs.lsun import Disc_High
 d_top = Disc_High(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
-from archs.mnist import Inf_Low
-inf_bot = Inf_Low(batch_size, seg_length, nz)
+# from archs.mnist import Inf_Low
+# inf_bot = Inf_Low(batch_size, seg_length, nz)
+from archs.lsun import Inf_Low_Med16
+inf_bot = Inf_Low_Med16(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
-from archs.mnist import Gen_Low
-gen_bot = Gen_Low(batch_size, seg_length, nz)
+# from archs.mnist import Gen_Low
+# gen_bot = Gen_Low(batch_size, seg_length, nz)
+from archs.lsun import Gen_Low_Med16
+gen_bot = Gen_Low_Med16(batch_size, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -192,7 +197,7 @@ for epoch in range(200):
             rec_loss = ((reconstruction - xs)**2).mean()
 
             if REC_PENALTY:
-                g_loss_bot += 100.0 * rec_loss
+                g_loss_bot += 10.0 * rec_loss
                 print "training with reconstruction loss:", rec_loss
             else:
                 print "training without low level reconstruction loss"
@@ -219,7 +224,7 @@ for epoch in range(200):
 
         z_bot = torch.cat(z_bot_lst, 1)
 
-        z_bot = Variable(z_bot.data)
+        z_bot = to_var(z_bot.data)
 
         if not LOWER_ONLY:
             # Infer higher level z from data
@@ -233,24 +238,15 @@ for epoch in range(200):
             print "high level rec loss", reconstruction_loss
             
             # Discriminator on only lower z (not ALI)
-            d_out_tops = d_top(z_bot)
+            d_out_top = d_top(z_bot)
             
-            # Higher level discriminator now outputs a list, so sum over that list
-            if SUM_DISC_OUTS:
-                d_loss_top = 0
-                g_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Using inferred lower level z's as real examples for discriminator
-                    d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - real_labels)**2).mean()
-                    g_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
-            else:
-                d_loss_top = ((d_out_tops[-1] - real_labels)**2).mean()
-                g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
+            d_loss_top = gan_loss(pre_sig=d_out_top, real=True, D=True, use_penalty=True, grad_inp=z_bot, gamma=1.0)
+            g_loss_top = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            # d_loss_top = ((d_out_top - real_labels)**2).mean()
+            # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
             print "d loss top inf", d_loss_top
-            
-            #d_loss_top += 0.1 * gradient_penalty(d_out_top.norm(2), z_bot)
-            
+                        
             if REC_PENALTY:
                 print "optimizing for high level rec loss"
                 g_loss_top += reconstruction_loss
@@ -276,39 +272,27 @@ for epoch in range(200):
             z_top = to_var(torch.randn(batch_size, nz))
             z_bot = gen_top(z_top)
             
-            d_out_tops = d_top(z_bot)
+            d_out_top = d_top(z_bot)
             
             d_top.zero_grad()
             
-            # Higher level discriminator now outputs a list, so sum over that list
-            if SUM_DISC_OUTS:
-                d_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Using sampled lower level z's as fake examples for discriminator
-                    d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - fake_labels)**2).mean()
-            else:
-                d_loss_top += ((d_out_tops[-1] - fake_labels)**2).mean()
+            d_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=True, use_penalty=True, grad_inp=z_top, gamma=1.0)
+            # d_loss_top += ((d_out_top - fake_labels)**2).mean()
             
             d_loss_top.backward(retain_graph=True)
             d_top_optimizer.step()
             
             print "d loss top gen", d_loss_top
             
-            # Consider down-weighting each element by the number in the list?
-            if SUM_DISC_OUTS:
-                g_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Generator loss pushing generated lower z's toward boundary
-                    g_loss_top = 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
-            else:
-                g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
+            g_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
             gen_top.zero_grad()
             d_top.zero_grad()
             g_loss_top.backward(retain_graph=True)
             gen_top_optimizer.step()
             
-            z_bot = Variable(z_bot.data)
+            z_bot = to_var(z_bot.data)
 
         gen_x_lst = []
         for seg in range(0,ns):
