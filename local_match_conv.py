@@ -134,12 +134,12 @@ if torch.cuda.is_available():
     for model in models: 
         model.cuda()
 
-d_top_optimizer = torch.optim.Adam(d_top.parameters(), lr=0.0003)
-d_bot_optimizer = torch.optim.Adam(d_bot.parameters(), lr=0.0003)
-inf_bot_optimizer = torch.optim.Adam(inf_bot.parameters(), lr=0.0003)
-gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003)
-inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003)
-gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
+d_top_optimizer = torch.optim.Adam(d_top.parameters(), lr=0.0003, betas=(0.5,0.99))
+d_bot_optimizer = torch.optim.Adam(d_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+inf_bot_optimizer = torch.optim.Adam(inf_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003, betas=(0.5,0.99))
+gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003, betas=(0.5,0.99))
 
 z_bot_norms = []
 z_top_norms = []
