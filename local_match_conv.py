@@ -36,6 +36,7 @@ Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
 REC_PENALTY = True
+REC_SHORTCUT = True
 
 start_time = timer()
 
@@ -165,7 +166,6 @@ for epoch in range(200):
             zs = inf_bot(xs)
             
             # Feed discriminator real data
-            # Discriminator on only x (not ALI)
             d_out_bot = d_bot(xs, zs)
             print 'd_out_bot.size():', d_out_bot.size()
             # d_loss_bot = ((d_out_bot - real_labels)**2).mean()
@@ -184,16 +184,16 @@ for epoch in range(200):
 
             # Reconstruct x through lower level z
             # Currently used for lower level generator learning
-            reconstruction = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
-            # reconstruction = gen_bot(zs)
-            print 'zs.size():', zs.size()
-            print 'xs.size():', xs.size()
-            print 're.size():', reconstruction.size()
+            if REC_SHORTCUT:
+                reconstruction = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
+            else:
+                reconstruction = gen_bot(zs)
+
             rec_loss = ((reconstruction - xs)**2).mean()
 
             if REC_PENALTY:
-                g_loss_bot += rec_loss
-                print "training with reconstruction loss"
+                g_loss_bot += 100.0 * rec_loss
+                print "training with reconstruction loss:", rec_loss
             else:
                 print "training without low level reconstruction loss"
 
@@ -333,7 +333,7 @@ for epoch in range(200):
             d_loss_bot.backward(retain_graph=True)
             d_bot_optimizer.step()
 
-            print "train with less g loss bot"
+            # print "train with less g loss bot"
 
             # Generator loss pushing generated x's toward boundary
             # g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
@@ -388,8 +388,10 @@ for epoch in range(200):
                 i = seg / ns_per_dim
                 j = seg % ns_per_dim
                 xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
-                zs = inf_bot(xs)
-                xr = gen_bot(zs)
+                if REC_SHORTCUT:
+                    xr = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
+                else:
+                    xr = gen_bot(inf_bot(xs))
                 rec_images_bot[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length] = xr.data
                 # x_bot_lst.append(xr)
                 # z_bot_lst.append(zs)
