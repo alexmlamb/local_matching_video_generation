@@ -35,7 +35,7 @@ Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
-REC_PENALTY = False
+REC_PENALTY = True
 
 start_time = timer()
 
@@ -184,7 +184,8 @@ for epoch in range(200):
 
             # Reconstruct x through lower level z
             # Currently used for lower level generator learning
-            reconstruction = gen_bot(zs)
+            reconstruction = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
+            # reconstruction = gen_bot(zs)
             print 'zs.size():', zs.size()
             print 'xs.size():', xs.size()
             print 're.size():', reconstruction.size()

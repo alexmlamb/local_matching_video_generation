@@ -25,8 +25,8 @@ PARAMS14 = {
     'stride': [2, 2],
 }
 PARAMS16 = {
-    'num_kernels': [64, 128],
-    'kernel_size': [6, 6],
+    'num_kernels': [64, 32],
+    'kernel_size': [5, 5],
     'padding': [2, 2],
     'stride': [2, 2],
 }
@@ -70,9 +70,11 @@ class Inf_Low(nn.Module):
 
         self.fc = nn.Linear(fc_input_size, nz)
 
-    def forward(self, x):
+    def forward(self, x, take_pre=False):
         h1 = self.conv1(x)
         h2 = self.conv2(h1)
+        if take_pre:
+            return h2
         h_flattened = h2.view(self.batch_size, -1)
         out = self.fc(h_flattened)
         return out
@@ -108,34 +110,22 @@ class Gen_Low(nn.Module):
         fc_output_size = reduce(mul, conv_out_shape, 1)
 
         self.fc = nn.Sequential(
-            nn.Linear(nz, fc_output_size),
-            nn.LeakyReLU(0.02))
-
-        self.convT1 = nn.Sequential(
-            nn.ConvTranspose2d(num_kernels[-1], num_kernels[-2], kernel_size=kernel_size[-1],
-                               padding=padding[-1], stride=stride[-1]),
-            nn.LeakyReLU(0.02))
-
-        self.convT2 = nn.Sequential(
-            nn.ConvTranspose2d(num_kernels[-2], NUM_CHANNELS, kernel_size=kernel_size[-2],
-                               padding=padding[-2], stride=stride[-2]),
+            nn.Linear(nz, num_kernels[-1] * 4 * 4))
+        self.convs = nn.Sequential(
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(num_kernels[-1], num_kernels[-2], kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(num_kernels[-2], NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
             nn.Tanh())
 
-        # self.convT1 = nn.Sequential(
-        #     nn.ConvTranspose2d(NUM_KERNELS[1], NUM_KERNELS[0], kernel_size=KERNEL_SIZE[1],
-        #                        padding=PADDING[1], stride=STRIDE[1]),
-        #     nn.LeakyReLU(0.2))
-        # 
-        # self.convT2 = nn.Sequential(
-        #     nn.ConvTranspose2d(NUM_KERNELS[0], NUM_CHANNELS, kernel_size=KERNEL_SIZE[0],
-        #                        padding=PADDING[0], stride=STRIDE[0]),
-        #     nn.Tanh())
-
-    def forward(self, z):
-        h1 = self.fc(z)
-        h1_2d = h1.view(self.batch_size, self.num_kernels[-1], self.conv_kernel_len, self.conv_kernel_len)
-        h_conv1 = self.convT1(h1_2d)
-        out = self.convT2(h_conv1)
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            h1_2d = z
+        else:
+            h1 = self.fc(z)
+            h1_2d = h1.view(self.batch_size, self.num_kernels[-1], 4, 4)
+        out = self.convs(h1_2d)
         return out
 
 
