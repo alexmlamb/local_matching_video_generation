@@ -35,7 +35,7 @@ Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
-REC_PENALTY = True
+REC_PENALTY = False
 
 start_time = timer()
 
