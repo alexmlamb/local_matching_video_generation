@@ -34,7 +34,7 @@ SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
-LOWER_ONLY = True
+LOWER_ONLY = False
 REC_PENALTY = True
 REC_SHORTCUT = True
 HIGH_SHORTCUT = True
@@ -106,23 +106,23 @@ d_top = Disc_High(batch_size, nz*ns, nz, 256)
 #(xL->zL) and (xR->zR)
 # from archs.mnist import Inf_Low
 # inf_bot = Inf_Low(batch_size, seg_length, nz)
-from archs.lsun import Inf_Low_Med16
-inf_bot = Inf_Low_Med16(batch_size, nz)
+from archs.lsun import Inf_Low16
+inf_bot = Inf_Low16(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
 # from archs.mnist import Gen_Low
 # gen_bot = Gen_Low(batch_size, seg_length, nz)
-from archs.lsun import Gen_Low_Med16
-gen_bot = Gen_Low_Med16(batch_size, nz)
+from archs.lsun import Gen_Low16
+gen_bot = Gen_Low16(batch_size, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
     nn.Linear(nz*ns, 256),
     nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
+    nn.LeakyReLU(0.02),
     nn.Linear(256, 256),
     nn.BatchNorm1d(256),
-    nn.LeakyReLU(0.2),
+    nn.LeakyReLU(0.02),
     nn.Linear(256, nz))
 
 from Gen_Top import Gen_Top
@@ -134,12 +134,12 @@ if torch.cuda.is_available():
     for model in models: 
         model.cuda()
 
-d_top_optimizer = torch.optim.Adam(d_top.parameters(), lr=0.0003)
-d_bot_optimizer = torch.optim.Adam(d_bot.parameters(), lr=0.0003)
-inf_bot_optimizer = torch.optim.Adam(inf_bot.parameters(), lr=0.0003)
-gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003)
-inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003)
-gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003)
+d_top_optimizer = torch.optim.Adam(d_top.parameters(), lr=0.0003, betas=(0.5,0.99))
+d_bot_optimizer = torch.optim.Adam(d_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+inf_bot_optimizer = torch.optim.Adam(inf_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+gen_bot_optimizer = torch.optim.Adam(gen_bot.parameters(), lr=0.0003, betas=(0.5,0.99))
+inf_top_optimizer = torch.optim.Adam(inf_top.parameters(), lr=0.0003, betas=(0.5,0.99))
+gen_top_optimizer = torch.optim.Adam(gen_top.parameters(), lr=0.0003, betas=(0.5,0.99))
 
 z_bot_norms = []
 z_top_norms = []
@@ -241,7 +241,7 @@ for epoch in range(200):
             d_out_top = d_top(z_bot)
             
             d_loss_top = gan_loss(pre_sig=d_out_top, real=True, D=True, use_penalty=True, grad_inp=z_bot, gamma=1.0)
-            g_loss_top = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            g_loss_top = gan_loss(pre_sig=d_out_top, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
             # d_loss_top = ((d_out_top - real_labels)**2).mean()
             # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
