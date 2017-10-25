@@ -34,7 +34,7 @@ SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
-LOWER_ONLY = False
+LOWER_ONLY = True
 REC_PENALTY = True
 REC_SHORTCUT = True
 HIGH_SHORTCUT = True
@@ -72,7 +72,7 @@ elif DATASET == 'lsun_bedroom':
                             transforms.ToTensor(),
                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                         ]))
-    nz = 64
+    nz = 128
     ns = 16
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
@@ -106,14 +106,14 @@ d_top = Disc_High(batch_size, nz*ns, nz, 256)
 #(xL->zL) and (xR->zR)
 # from archs.mnist import Inf_Low
 # inf_bot = Inf_Low(batch_size, seg_length, nz)
-from archs.lsun import Inf_Low_Deep16
-inf_bot = Inf_Low_Deep16(batch_size, nz)
+from archs.lsun import Inf_Low_Med16
+inf_bot = Inf_Low_Med16(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
 # from archs.mnist import Gen_Low
 # gen_bot = Gen_Low(batch_size, seg_length, nz)
-from archs.lsun import Gen_Low_Deep16
-gen_bot = Gen_Low_Deep16(batch_size, nz)
+from archs.lsun import Gen_Low_Med16
+gen_bot = Gen_Low_Med16(batch_size, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(

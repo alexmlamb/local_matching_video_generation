@@ -25,7 +25,7 @@ PARAMS14 = {
     'stride': [2, 2],
 }
 PARAMS16 = {
-    'num_kernels': [64, 32],
+    'num_kernels': [64, 64],
     'kernel_size': [5, 5],
     'padding': [2, 2],
     'stride': [2, 2],
@@ -216,7 +216,7 @@ class Disc_High(nn.Module):
         out = self.l2(out)
         out = self.a2(out)
         out = self.l3(out)
-        return [out]
+        return out
 
 
 class Inf_High(nn.Module):

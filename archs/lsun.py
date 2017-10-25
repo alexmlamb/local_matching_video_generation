@@ -13,6 +13,113 @@ NUM_CHANNELS = 3
 def compute_conv_output_size(input_size, kernel_size, padding, stride):
     return (input_size - kernel_size + 2 * padding) / stride + 1
 
+class Inf_Low16(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Inf_Low16, self).__init__()
+
+        self.batch_size = batch_size
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
+
+        self.l2 = nn.Sequential(
+            nn.Linear(64*4*4, nz))
+
+    def forward(self, x, take_pre=False):
+        out = self.l1(x)
+        if take_pre:
+            return out
+        out = out.view(self.batch_size, -1)
+        out = self.l2(out)
+        return out
+
+
+class Gen_Low16(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Gen_Low16, self).__init__()
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 64*4*4))
+        self.l2 = nn.Sequential(
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
+            nn.Tanh())
+
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            out = z
+        else:
+            out = self.l1(z)
+            out = out.view(self.batch_size,64,4,4)
+        out = self.l2(out)
+        return out
+
+
+class Inf_Low_Med16(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Inf_Low_Med16, self).__init__()
+
+        self.batch_size = batch_size
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
+
+        self.l2 = nn.Sequential(
+            nn.Linear(64*4*4, nz))
+
+    def forward(self, x, take_pre=False):
+        out = self.l1(x)
+        if take_pre:
+            return out
+        out = out.view(self.batch_size, -1)
+        out = self.l2(out)
+        return out
+
+
+class Gen_Low_Med16(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Gen_Low_Med16, self).__init__()
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 64*4*4))
+        self.l2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(128, 128, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
+            nn.Tanh())
+
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            out = z
+        else:
+            out = self.l1(z)
+            out = out.view(self.batch_size,64,4,4)
+        out = self.l2(out)
+        return out
+
 
 class Inf_Low_Deep16(nn.Module):
 
@@ -40,7 +147,6 @@ class Inf_Low_Deep16(nn.Module):
         out = self.l1(x)
         if take_pre:
             return out
-        print 'out.size():', out.size()
         out = out.view(self.batch_size, -1)
         out = self.l2(out)
         return out
@@ -145,9 +251,9 @@ class Disc_High(nn.Module):
 
         self.l1 = nn.Linear(nb, nh)
         # self.l1 = nn.Linear(nh+nh, nh)
-        self.a1 = nn.LeakyReLU(0.2)
+        self.a1 = nn.LeakyReLU(0.02)
         self.l2 = nn.Linear(nh,nh)
-        self.a2 = nn.LeakyReLU(0.2)
+        self.a2 = nn.LeakyReLU(0.02)
         self.l3 = nn.Linear(nh, 1)
 
     def forward(self, z_bot, z_top=None):
