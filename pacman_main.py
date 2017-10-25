@@ -15,13 +15,13 @@ import random
 from reg_loss import gan_loss
 from LayerNorm1d import LayerNorm1d
 
-load_D = False
-load_G = False
-load_I = False
+load_D = True
+load_G = True
+load_I = True
 
-file_D = "saved_models/62758_Dbot.pt"
-file_G = "saved_models/62758_Gbot.pt"
-file_I = "saved_models/62758_Ibot.pt"
+file_D = "saved_models/65534_Dbot.pt"
+file_G = "saved_models/65534_Gbot.pt"
+file_I = "saved_models/65534_Ibot.pt"
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -156,7 +156,8 @@ for epoch in range(2000):
         inf_short = I(images, take_pre=True)
         rec = G(inf_short, give_pre=True)
 
-        rec_loss = 100.0 * ((rec - images)**2).mean()
+        #reweight rec_loss
+        rec_loss = 0.1 * ((rec - images)**2).mean()
 
         i_loss = gan_loss(pre_sig=real_score, real=True, D=False, use_penalty=False,grad_inp=None) + rec_loss
         D.zero_grad()
