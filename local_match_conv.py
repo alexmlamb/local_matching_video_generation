@@ -95,21 +95,25 @@ seg_length = IMAGE_LENGTH / ns_per_dim
 print "ns", ns
 
 #(zL,xL) and (zR,xR)
-from archs.mnist import Disc_Low
+from archs.lsun import Disc_Low
 d_bot = Disc_Low(batch_size, seg_length, nz)
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
-from archs.mnist import Disc_High
+from archs.lsun import Disc_High
 d_top = Disc_High(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
-from archs.mnist import Inf_Low
-inf_bot = Inf_Low(batch_size, seg_length, nz)
+# from archs.mnist import Inf_Low
+# inf_bot = Inf_Low(batch_size, seg_length, nz)
+from archs.lsun import Inf_Low_Deep16
+inf_bot = Inf_Low_Deep16(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
-from archs.mnist import Gen_Low
-gen_bot = Gen_Low(batch_size, seg_length, nz)
+# from archs.mnist import Gen_Low
+# gen_bot = Gen_Low(batch_size, seg_length, nz)
+from archs.lsun import Gen_Low_Deep16
+gen_bot = Gen_Low_Deep16(batch_size, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
