@@ -34,9 +34,10 @@ SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
-LOWER_ONLY = True
+LOWER_ONLY = False
 REC_PENALTY = True
 REC_SHORTCUT = True
+HIGH_SHORTCUT = True
 
 start_time = timer()
 
@@ -192,7 +193,7 @@ for epoch in range(200):
             rec_loss = ((reconstruction - xs)**2).mean()
 
             if REC_PENALTY:
-                g_loss_bot += 100.0 * rec_loss
+                g_loss_bot += 10.0 * rec_loss
                 print "training with reconstruction loss:", rec_loss
             else:
                 print "training without low level reconstruction loss"
@@ -219,7 +220,7 @@ for epoch in range(200):
 
         z_bot = torch.cat(z_bot_lst, 1)
 
-        z_bot = Variable(z_bot.data)
+        z_bot = to_var(z_bot.data)
 
         if not LOWER_ONLY:
             # Infer higher level z from data
@@ -233,24 +234,15 @@ for epoch in range(200):
             print "high level rec loss", reconstruction_loss
             
             # Discriminator on only lower z (not ALI)
-            d_out_tops = d_top(z_bot)
+            d_out_top = d_top(z_bot)
             
-            # Higher level discriminator now outputs a list, so sum over that list
-            if SUM_DISC_OUTS:
-                d_loss_top = 0
-                g_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Using inferred lower level z's as real examples for discriminator
-                    d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - real_labels)**2).mean()
-                    g_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
-            else:
-                d_loss_top = ((d_out_tops[-1] - real_labels)**2).mean()
-                g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
+            d_loss_top = gan_loss(pre_sig=d_out_top, real=True, D=True, use_penalty=True, grad_inp=z_bot, gamma=1.0)
+            g_loss_top = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            # d_loss_top = ((d_out_top - real_labels)**2).mean()
+            # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
             print "d loss top inf", d_loss_top
-            
-            #d_loss_top += 0.1 * gradient_penalty(d_out_top.norm(2), z_bot)
-            
+                        
             if REC_PENALTY:
                 print "optimizing for high level rec loss"
                 g_loss_top += reconstruction_loss
@@ -276,39 +268,27 @@ for epoch in range(200):
             z_top = to_var(torch.randn(batch_size, nz))
             z_bot = gen_top(z_top)
             
-            d_out_tops = d_top(z_bot)
+            d_out_top = d_top(z_bot)
             
             d_top.zero_grad()
             
-            # Higher level discriminator now outputs a list, so sum over that list
-            if SUM_DISC_OUTS:
-                d_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Using sampled lower level z's as fake examples for discriminator
-                    d_loss_top += 1.0 / len(d_out_tops) * ((d_out_top - fake_labels)**2).mean()
-            else:
-                d_loss_top += ((d_out_tops[-1] - fake_labels)**2).mean()
+            d_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=True, use_penalty=True, grad_inp=z_top, gamma=1.0)
+            # d_loss_top += ((d_out_top - fake_labels)**2).mean()
             
             d_loss_top.backward(retain_graph=True)
             d_top_optimizer.step()
             
             print "d loss top gen", d_loss_top
             
-            # Consider down-weighting each element by the number in the list?
-            if SUM_DISC_OUTS:
-                g_loss_top = 0
-                for d_out_top in d_out_tops:
-                    # Generator loss pushing generated lower z's toward boundary
-                    g_loss_top = 1.0 / len(d_out_tops) * ((d_out_top - boundary_labels)**2).mean()
-            else:
-                g_loss_top = ((d_out_tops[-1] - boundary_labels)**2).mean()
+            g_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
             gen_top.zero_grad()
             d_top.zero_grad()
             g_loss_top.backward(retain_graph=True)
             gen_top_optimizer.step()
             
-            z_bot = Variable(z_bot.data)
+            z_bot = to_var(z_bot.data)
 
         gen_x_lst = []
         for seg in range(0,ns):
