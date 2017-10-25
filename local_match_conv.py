@@ -16,6 +16,7 @@ import random
 from timeit import default_timer as timer
 import pickle
 from math import sqrt
+from reg_loss import gan_loss
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -34,6 +35,8 @@ Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = True
+REC_PENALTY = True
+REC_SHORTCUT = True
 
 start_time = timer()
 
@@ -163,13 +166,15 @@ for epoch in range(200):
             zs = inf_bot(xs)
             
             # Feed discriminator real data
-            # Discriminator on only x (not ALI)
             d_out_bot = d_bot(xs, zs)
             print 'd_out_bot.size():', d_out_bot.size()
-            d_loss_bot = ((d_out_bot - real_labels)**2).mean()
+            # d_loss_bot = ((d_out_bot - real_labels)**2).mean()
+            d_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=True, use_penalty=True, grad_inp=xs, gamma=1.0) + \
+                gan_loss(pre_sig=d_out_bot, real=True, D=True, use_penalty=True, grad_inp=zs, gamma=1.0)
 
             # Generator loss pushing real data toward boundary
-            g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            # g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            g_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
 
             # Add z norm penalty
             if Z_NORM_MULT is not None:
@@ -179,15 +184,16 @@ for epoch in range(200):
 
             # Reconstruct x through lower level z
             # Currently used for lower level generator learning
-            reconstruction = gen_bot(zs)
-            print 'zs.size():', zs.size()
-            print 'xs.size():', xs.size()
-            print 're.size():', reconstruction.size()
+            if REC_SHORTCUT:
+                reconstruction = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
+            else:
+                reconstruction = gen_bot(zs)
+
             rec_loss = ((reconstruction - xs)**2).mean()
 
-            if False:
-                g_loss_bot += rec_loss
-                print "training with reconstruction loss"
+            if REC_PENALTY:
+                g_loss_bot += 100.0 * rec_loss
+                print "training with reconstruction loss:", rec_loss
             else:
                 print "training without low level reconstruction loss"
 
@@ -205,6 +211,7 @@ for epoch in range(200):
             # Only do update 10% of the time
             # But still backprop every time?
             if random.uniform(0,1) < 0.1:
+            # if random.uniform(0,1) < 1.0:
                 gen_bot_optimizer.step()
                 inf_bot_optimizer.step()
 
@@ -244,7 +251,7 @@ for epoch in range(200):
             
             #d_loss_top += 0.1 * gradient_penalty(d_out_top.norm(2), z_bot)
             
-            if True:
+            if REC_PENALTY:
                 print "optimizing for high level rec loss"
                 g_loss_top += reconstruction_loss
             else:
@@ -316,7 +323,9 @@ for epoch in range(200):
             gen_x_lst.append(seg_x)
             d_out_bot = d_bot(seg_x, seg_z)
             # Discriminator for generated x's (not ALI)
-            d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
+            # d_loss_bot = ((d_out_bot - fake_labels)**2).mean()
+            d_loss_bot = gan_loss(pre_sig=d_out_bot, real=False, D=True, use_penalty=True, grad_inp=seg_x, gamma=1.0) + \
+                gan_loss(pre_sig=d_out_bot, real=False, D=True, use_penalty=True, grad_inp=seg_z, gamma=1.0)
 
             print "d loss bot gen", d_loss_bot
 
@@ -324,10 +333,12 @@ for epoch in range(200):
             d_loss_bot.backward(retain_graph=True)
             d_bot_optimizer.step()
 
-            print "train with less g loss bot"
+            # print "train with less g loss bot"
 
             # Generator loss pushing generated x's toward boundary
-            g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            # g_loss_bot = 1.0 * ((d_out_bot - boundary_labels)**2).mean()
+            g_loss_bot = gan_loss(pre_sig=d_out_bot, real=True, D=False, use_penalty=False, grad_inp=None, gamma=None, bgan=True)
+            
             gen_bot.zero_grad()
             d_bot.zero_grad()
             g_loss_bot.backward(retain_graph=True)
@@ -367,27 +378,28 @@ for epoch in range(200):
         
             save_image(denorm(fake_images), os.path.join(OUT_DIR, 'fake_images%05d.png' % checkpoint_i))
         
-        
             real_images = images.view(images.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
             save_image(denorm(real_images.data), os.path.join(OUT_DIR, 'real_images%05d.png' % checkpoint_i))
-        
-        
-            #z_bot_lst = []
-            x_bot_lst = []
-            z_bot_lst = []
+
+            # x_bot_lst = []
+            # z_bot_lst = []
+            rec_images_bot = torch.zeros(batch_size, NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
             for seg in range(0,ns):
                 i = seg / ns_per_dim
                 j = seg % ns_per_dim
                 xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
-                zs = inf_bot(xs)
-                xr = gen_bot(zs)
-                x_bot_lst.append(xr)
-                z_bot_lst.append(zs)
-        
-            rec_images_bot = torch.cat(x_bot_lst, 1)
-        
-            rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-            save_image(denorm(rec_images_bot.data), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
+                if REC_SHORTCUT:
+                    xr = gen_bot(inf_bot(xs, take_pre=True), give_pre=True)
+                else:
+                    xr = gen_bot(inf_bot(xs))
+                rec_images_bot[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length] = xr.data
+                # x_bot_lst.append(xr)
+                # z_bot_lst.append(zs)
+
+            # rec_images_bot = torch.cat(x_bot_lst, 1)
+            # 
+            # rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+            save_image(denorm(rec_images_bot), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
         
             if not LOWER_ONLY:
                 z_bot = torch.cat(z_bot_lst, 1)
