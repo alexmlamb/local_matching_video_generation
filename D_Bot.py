@@ -61,14 +61,19 @@ class D_Bot_Conv32(nn.Module):
             nn.LeakyReLU(0.02))
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 128, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
         self.l2 = nn.Sequential(
-            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 256, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
-
         self.l3 = nn.Sequential(
-            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(512, 512, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
 
         self.l_end = nn.Sequential(
@@ -80,6 +85,9 @@ class D_Bot_Conv32(nn.Module):
         zo3 = self.zo3(z).view(self.batch_size,512,4,4)
 
         out = self.l1(x)
+
+        print "out size l1", out.size()
+
         out = self.l2(out) + zo2
         out = self.l3(out) + zo3
         out = self.l_end(out)
