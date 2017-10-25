@@ -110,3 +110,86 @@ class Gen_Bot_Conv32(nn.Module):
         return out
 
 
+class Gen_Bot_Conv32_deep1(nn.Module):
+    def __init__(self, batch_size,nz):
+        super(Gen_Bot_Conv32_deep1, self).__init__()
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 512*4*4))
+        self.l2 = nn.Sequential(
+            nn.Conv2d(512, 256, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(256, 128, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 32, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(32, 32, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 32, kernel_size=1, padding=0, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 3, kernel_size=1, padding=0, stride=1),
+            nn.Tanh())
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            out = z
+        else:
+            out = self.l1(z)
+            out = out.view(self.batch_size,512,4,4)
+        out = self.l2(out)
+        return out
+
+class Gen_Bot_Conv32_deepbottleneck(nn.Module):
+    def __init__(self, batch_size,nz):
+        super(Gen_Bot_Conv32_deepbottleneck, self).__init__()
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 32*4*4))
+        self.l2 = nn.Sequential(
+            nn.Conv2d(32, 256, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(256, 128, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 32, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(32, 32, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 32, kernel_size=1, padding=0, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 3, kernel_size=1, padding=0, stride=1),
+            nn.Tanh())
+    def forward(self, z, give_pre=False):
+        if give_pre:
+            out = z
+        else:
+            out = self.l1(z)
+            out = out.view(self.batch_size,32,4,4)
+        out = self.l2(out)
+        return out
+
+

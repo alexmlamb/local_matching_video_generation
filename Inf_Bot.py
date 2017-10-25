@@ -102,4 +102,76 @@ class Inf_Bot_Conv32(nn.Module):
 
 
 
+class Inf_Bot_Conv32_deep1(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Inf_Bot_Conv32_deep1, self).__init__()
+
+        self.batch_size = batch_size
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=5, padding=1, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 128, kernel_size=5, padding=1, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(512),
+            nn.LeakyReLU(0.02))
+
+        self.l2 = nn.Sequential(
+            nn.Linear(512*4*4, nz))
+
+    def forward(self, x, take_pre=False):
+        out = self.l1(x)
+        if take_pre:
+            return out
+        out = out.view(self.batch_size, -1)
+        out = self.l2(out)
+        return out
+
+
+
+class Inf_Bot_Conv32_deepbottleneck(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Inf_Bot_Conv32_deepbottleneck, self).__init__()
+
+        self.batch_size = batch_size
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=5, padding=1, stride=1),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 128, kernel_size=5, padding=1, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 32, kernel_size=5, padding=2, stride=2),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.02))
+
+        self.l2 = nn.Sequential(
+            nn.Linear(32*4*4, nz))
+
+    def forward(self, x, take_pre=False):
+        out = self.l1(x)
+        if take_pre:
+            return out
+        out = out.view(self.batch_size, -1)
+        out = self.l2(out)
+        return out
+
 
