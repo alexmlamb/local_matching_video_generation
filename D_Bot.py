@@ -44,6 +44,61 @@ class D_Bot(nn.Module):
 
 
 class D_Bot_Conv32(nn.Module):
+    def __init__(self, batch_size, nz=None):
+        super(D_Bot_Conv32, self).__init__()
+        self.batch_size = batch_size
+        ali = nz is not None
+        if ali:
+            self.zo2 = nn.Sequential(
+                nn.Linear(nz, 512),
+                nn.LeakyReLU(0.02),
+                nn.Linear(512, 256*8*8),
+                nn.LeakyReLU(0.02))
+    
+            self.zo3 = nn.Sequential(
+                nn.Linear(nz, 512),
+                nn.LeakyReLU(0.02),
+                nn.Linear(512, 512*4*4),
+                nn.LeakyReLU(0.02))
+
+        self.l1 = nn.Sequential(
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 128, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
+        self.l2 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(256, 256, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
+        self.l3 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(512, 512, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02))
+
+        self.l_end = nn.Sequential(
+            nn.Conv2d(512, 1, kernel_size=5, padding=2, stride=2))
+
+    def forward(self, x, z=None):
+        ali = z is not None
+        if ali:
+            zo2 = self.zo2(z).view(self.batch_size,256,8,8) #goes to 256x8x8
+            zo3 = self.zo3(z).view(self.batch_size,512,4,4)
+
+        out = self.l1(x)
+        out = self.l2(out)
+        if ali:
+            out = out + zo2
+        out = self.l3(out)
+        if ali:
+            out = out + zo3
+        out = self.l_end(out)
+        out = out.view(self.batch_size,-1)
+        return out
+
+    
+class D_Bot_Conv32_old(nn.Module):
     def __init__(self, batch_size, nz):
         super(D_Bot_Conv32, self).__init__()
         self.batch_size = batch_size
@@ -93,6 +148,7 @@ class D_Bot_Conv32(nn.Module):
         out = self.l_end(out)
         out = out.view(self.batch_size,-1)
         return out
+    
 
 
 
