@@ -105,8 +105,8 @@ else:
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
-from archs.lsun import Disc_High
-d_top = Disc_High(batch_size, nz*ns, nz, 256)
+from archs.lsun import Disc_High_fc
+d_top = Disc_High_fc(batch_size, nz*ns, nz, 256)
 
 #(xL->zL) and (xR->zR)
 # from archs.mnist import Inf_Low

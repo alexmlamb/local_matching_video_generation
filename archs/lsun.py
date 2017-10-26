@@ -13,6 +13,63 @@ NUM_CHANNELS = 3
 def compute_conv_output_size(input_size, kernel_size, padding, stride):
     return (input_size - kernel_size + 2 * padding) / stride + 1
 
+class Disc_High(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Disc_High, self).__init__()
+        self.batch_size = batch_size
+        
+        # self.l1 = nn.Sequential(
+        #     nn.Linear(nz, 32*16*16))
+
+        self.l2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=2),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(64, 1, kernel_size=5, padding=2, stride=1),
+            nn.LeakyReLU(0.02))
+
+    def forward(self, z):
+        # out = self.l1(z)
+        out = z.view(self.batch_size, 32, 16, 16)
+        out = self.l2(out)
+        out = out.view(self.batch_size, -1)
+        return out
+
+
+class Gen_High(nn.Module):
+
+    def __init__(self, batch_size, nz):
+        super(Gen_High, self).__init__()
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 32*4*4))
+        self.l2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.02),
+            nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.02),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(64, 32, kernel_size=5, padding=2, stride=1),
+            nn.Tanh())
+
+    def forward(self, z):
+        out = self.l1(z)
+        out = out.view(self.batch_size, 32, 4, 4)
+        out = self.l2(out)
+        out = out.view(self.batch_size, -1)
+        return out
+    
+    
 class Inf_Low16(nn.Module):
 
     def __init__(self, batch_size, nz):
@@ -242,10 +299,10 @@ class Disc_Low(nn.Module):
         return out
 
 
-class Disc_High(nn.Module):
+class Disc_High_fc(nn.Module):
 
     def __init__(self, batch_size, nb, nt, nh):
-        super(Disc_High, self).__init__()
+        super(Disc_High_fc, self).__init__()
 
         self.batch_size = batch_size
 
@@ -286,9 +343,9 @@ class Inf_High(nn.Module):
     pass
 
 
-class Gen_High(nn.Module):
+class Gen_High_fc(nn.Module):
     def __init__(self, batch_size, nz, no):
-        super(Gen_High, self).__init__()
+        super(Gen_High_fc, self).__init__()
 
         self.batch_size = batch_size
         self.l1 = nn.Sequential(

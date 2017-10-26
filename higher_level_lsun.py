@@ -42,8 +42,9 @@ LOAD_LOWER = True
 HIGHER_ONLY = True
 if HIGHER_ONLY:
     LOAD_LOWER = True
-LOWER_SLURM_ID = 65961
-SAVED_MODELS_DIR = '/data/lisatmp4/nealbray/loc/lsun_bedroom/%d/saved_models' % LOWER_SLURM_ID
+LOWER_SLURM_ID = '65961'
+LOWER_SLURM_FOLDER = '65961_lower'
+SAVED_MODELS_DIR = '/data/lisatmp4/nealbray/loc/lsun_bedroom/%s/saved_models' % LOWER_SLURM_FOLDER
 
 start_time = timer()
 
@@ -88,21 +89,22 @@ seg_length = IMAGE_LENGTH / ns_per_dim
 
 print "ns", ns
 
-d_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%d_dbot.pt' % LOWER_SLURM_ID))
-inf_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%d_infbot.pt' % LOWER_SLURM_ID))
-gen_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%d_genbot.pt' % LOWER_SLURM_ID))
+d_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_dbot.pt' % LOWER_SLURM_ID))
+inf_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_infbot.pt' % LOWER_SLURM_ID))
+gen_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_genbot.pt' % LOWER_SLURM_ID))
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
 from archs.lsun import Disc_High
-d_top = nn.Sequential(
-    nn.Linear(total_low_z, 2048),
-    #nn.BatchNorm1d(2048),
-    nn.LeakyReLU(0.02),
-    nn.Linear(2048, 1024),
-    #nn.BatchNorm1d(1024),
-    nn.LeakyReLU(0.02),
-    nn.Linear(1024, 1))
+# d_top = nn.Sequential(
+#     nn.Linear(total_low_z, 2048),
+#     #nn.BatchNorm1d(2048),
+#     nn.LeakyReLU(0.02),
+#     nn.Linear(2048, 1024),
+#     #nn.BatchNorm1d(1024),
+#     nn.LeakyReLU(0.02),
+#     nn.Linear(1024, 1))
+d_top = Disc_High(batch_size, total_low_z)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -115,12 +117,13 @@ inf_top = nn.Sequential(
     nn.Linear(256, nz))
 
 from archs.lsun import Gen_High
-gen_top = Gen_High(batch_size, nz_high, total_low_z)
+# gen_top = Gen_High_fc(batch_size, nz_high, total_low_z)
+gen_top = Gen_High(batch_size, nz_high)
 
 models = [d_top, d_bot, inf_bot, gen_bot, inf_top, gen_top]
 
 if torch.cuda.is_available():
-    for model in models: 
+    for model in models:
         model.cuda()
 
 d_top_optimizer = torch.optim.Adam(d_top.parameters(), lr=0.0003, betas=(0.5,0.99))
@@ -151,6 +154,8 @@ for epoch in range(200):
             xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
             z_volume = inf_bot(xs, take_pre=True)
             zs = z_volume.view(batch_size, -1)
+            if zs.size()[1] != low_z_dim:
+                raise(AssertionError('expected z segment dim: %d\tactual: %d' % (low_z_dim, zs.size()[1])))
             z_bot_lst.append(zs)
 
         z_bot = torch.cat(z_bot_lst, 1)
@@ -177,11 +182,11 @@ for epoch in range(200):
         
         print "d loss top inf", d_loss_top
 
-        if REC_PENALTY:
-            print "optimizing for high level rec loss"
-            g_loss_top += 10.0 * reconstruction_loss
-        else:
-            print "not optimizing high level rec loss"
+        # if REC_PENALTY:
+        #     print "optimizing for high level rec loss"
+        #     g_loss_top += 10.0 * reconstruction_loss
+        # else:
+        #     print "not optimizing high level rec loss"
         
         d_top.zero_grad()
         d_loss_top.backward(retain_graph=True)
@@ -204,7 +209,7 @@ for epoch in range(200):
         
         d_top.zero_grad()
         
-        d_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=True, use_penalty=True, grad_inp=z_top, gamma=1.0)
+        d_loss_top = gan_loss(pre_sig=d_out_top, real=False, D=True, use_penalty=True, grad_inp=z_bot, gamma=1.0)
         # d_loss_top += ((d_out_top - fake_labels)**2).mean()
         
         d_loss_top.backward(retain_graph=True)
@@ -283,7 +288,7 @@ for epoch in range(200):
             # rec_images_bot = rec_images_bot.view(rec_images_bot.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
             save_image(denorm(rec_images_bot), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
         
-            if not LOWER_ONLY:
+            # if not LOWER_ONLY:
                 # z_bot = torch.cat(z_bot_lst, 1)
                 # z_top = inf_top(z_bot)
                 # z_bot = gen_top(z_top)
@@ -295,15 +300,18 @@ for epoch in range(200):
                 #     seg_x = gen_bot(z_volume, give_pre=True)
                 #     gen_x_lst.append(seg_x)
             
-                rec_images_top = torch.cat(gen_x_lst, 1)
-            
-                rec_images_top = rec_images_top.view(rec_images_top.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
-                save_image(denorm(rec_images_top.data), os.path.join(OUT_DIR, 'rec_images_top%05d.png' % checkpoint_i))
+                # rec_images_top = torch.cat(gen_x_lst, 1)
+                # 
+                # rec_images_top = rec_images_top.view(rec_images_top.size(0), NUM_CHANNELS, IMAGE_LENGTH, IMAGE_LENGTH)
+                # save_image(denorm(rec_images_top.data), os.path.join(OUT_DIR, 'rec_images_top%05d.png' % checkpoint_i))
             
             # Checkpoint
+            print 'Saving generator...'
             torch.save(gen_top, os.path.join(MODELS_DIR, '%s_gentop.pt' % slurm_name))
+            print 'Saving discriminator...'
             torch.save(d_top, os.path.join(MODELS_DIR, '%s_dtop.pt' % slurm_name))
-            torch.save(inf_top, os.path.join(MODELS_DIR, '%s_inftop.pt' % slurm_name))
+            # print 'Saving inference...'
+            # torch.save(inf_top, os.path.join(MODELS_DIR, '%s_inftop.pt' % slurm_name))
                 
             checkpoint_i += 1
                 
