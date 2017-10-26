@@ -35,14 +35,14 @@ Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
 LOWER_ONLY = False
-REC_PENALTY = True
+REC_PENALTY = False
 REC_SHORTCUT = True
 HIGH_SHORTCUT = True
 LOAD_LOWER = True
 HIGHER_ONLY = True
 if HIGHER_ONLY:
     LOAD_LOWER = True
-LOWER_SLURM_ID = 65535
+LOWER_SLURM_ID = 65961
 SAVED_MODELS_DIR = '/data/lisatmp4/nealbray/loc/lsun_bedroom/%d/saved_models' % LOWER_SLURM_ID
 
 start_time = timer()
@@ -69,8 +69,11 @@ dataset = datasets.LSUN('/data/lisa/data/lsun', classes=['bedroom_train'],
                         transforms.ToTensor(),
                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                     ]))
-nz = 128
+nz = 64
 ns = 16
+nz_high = 256
+low_z_dim = 4*4*32
+total_low_z =low_z_dim*ns
 
 NUM_DISC_OUTPUTS = 4
 real_labels = to_var(torch.ones(batch_size, NUM_DISC_OUTPUTS))
@@ -92,7 +95,14 @@ gen_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%d_genbot.pt' % LOWER_SLURM
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
 from archs.lsun import Disc_High
-d_top = Disc_High(batch_size, nz*ns, nz, 256)
+d_top = nn.Sequential(
+    nn.Linear(total_low_z, 2048),
+    #nn.BatchNorm1d(2048),
+    nn.LeakyReLU(0.02),
+    nn.Linear(2048, 1024),
+    #nn.BatchNorm1d(1024),
+    nn.LeakyReLU(0.02),
+    nn.Linear(1024, 1))
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -104,8 +114,8 @@ inf_top = nn.Sequential(
     nn.LeakyReLU(0.02),
     nn.Linear(256, nz))
 
-from Gen_Top import Gen_Top
-gen_top = Gen_Top(batch_size, nz, 256, ns*nz)
+from archs.lsun import Gen_High
+gen_top = Gen_High(batch_size, nz_high, total_low_z)
 
 models = [d_top, d_bot, inf_bot, gen_bot, inf_top, gen_top]
 
@@ -139,23 +149,23 @@ for epoch in range(200):
             i = seg / ns_per_dim
             j = seg % ns_per_dim
             xs = images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length]
-            zs = inf_bot(xs)
+            z_volume = inf_bot(xs, take_pre=True)
+            zs = z_volume.view(batch_size, -1)
             z_bot_lst.append(zs)
 
         z_bot = torch.cat(z_bot_lst, 1)
-
         z_bot = to_var(z_bot.data)
 
 
         #### Higher Level Inference
-        z_top = inf_top(z_bot)
+        # z_top = inf_top(z_bot)
+        # 
+        # # Reconstruct lower level z through higher level z
+        # # Currently used for higher level generator learning
+        # z_bot_rec = gen_top(z_top)
+        # reconstruction_loss = ((z_bot - z_bot_rec)**2).mean()
         
-        # Reconstruct lower level z through higher level z
-        # Currently used for higher level generator learning
-        z_bot_rec = gen_top(z_top)
-        reconstruction_loss = ((z_bot - z_bot_rec)**2).mean()
-        
-        print "high level rec loss", reconstruction_loss
+        # print "high level rec loss", reconstruction_loss
         
         # Discriminator on only lower z (not ALI)
         d_out_top = d_top(z_bot)
@@ -177,17 +187,17 @@ for epoch in range(200):
         d_loss_top.backward(retain_graph=True)
         d_top_optimizer.step()
         
-        inf_top.zero_grad()
+        # inf_top.zero_grad()
         gen_top.zero_grad()
         d_top.zero_grad()
         g_loss_top.backward(retain_graph=True)
-        inf_top_optimizer.step()
+        # inf_top_optimizer.step()
         gen_top_optimizer.step()
 
         #============GENERATION PROCESS========================$
 
         # Sample higher and lower z
-        z_top = to_var(torch.randn(batch_size, nz))
+        z_top = to_var(torch.randn(batch_size, nz_high))
         z_bot = gen_top(z_top)
         
         d_out_top = d_top(z_bot)
@@ -214,14 +224,10 @@ for epoch in range(200):
 
         gen_x_lst = []
         for seg in range(0,ns):
-            # Generate sampled x's
-            if LOWER_ONLY:
-                seg_z = to_var(torch.randn(batch_size, nz))
-            else:
-                seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-                
-            seg_x = gen_bot(seg_z)
-
+            seg_z = z_bot[:,seg*low_z_dim:(seg+1)*low_z_dim].contiguous()
+            z_volume = seg_z.view(batch_size, 32, 4, 4)
+            seg_x = gen_bot(z_volume, give_pre=True)
+            
             gen_x_lst.append(seg_x)
 
         #print d_out_bot
@@ -278,14 +284,16 @@ for epoch in range(200):
             save_image(denorm(rec_images_bot), os.path.join(OUT_DIR, 'rec_images_bot%05d.png' % checkpoint_i))
         
             if not LOWER_ONLY:
-                z_bot = torch.cat(z_bot_lst, 1)
-                z_top = inf_top(z_bot)
-                z_bot = gen_top(z_top)
-            
-                gen_x_lst = []
-                for seg in range(0,ns):
-                    seg_z = z_bot[:,seg*nz:(seg+1)*nz]
-                    gen_x_lst.append(gen_bot(seg_z))
+                # z_bot = torch.cat(z_bot_lst, 1)
+                # z_top = inf_top(z_bot)
+                # z_bot = gen_top(z_top)
+                # 
+                # gen_x_lst = []
+                # for seg in range(0,ns):
+                #     seg_z = z_bot[:,seg*low_z_dim:(seg+1)*low_z_dim].contiguous()
+                #     z_volume = seg_z.view(batch_size, 32, 4, 4)
+                #     seg_x = gen_bot(z_volume, give_pre=True)
+                #     gen_x_lst.append(seg_x)
             
                 rec_images_top = torch.cat(gen_x_lst, 1)
             

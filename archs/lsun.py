@@ -21,13 +21,13 @@ class Inf_Low16(nn.Module):
         self.batch_size = batch_size
 
         self.l1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02),
-            nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(128, 32, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
 
         self.l2 = nn.Sequential(
-            nn.Linear(64*4*4, nz))
+            nn.Linear(32*4*4, nz))
 
     def forward(self, x, take_pre=False):
         out = self.l1(x)
@@ -44,13 +44,13 @@ class Gen_Low16(nn.Module):
         super(Gen_Low16, self).__init__()
         self.batch_size = batch_size
         self.l1 = nn.Sequential(
-            nn.Linear(nz, 64*4*4))
+            nn.Linear(nz, 32*4*4))
         self.l2 = nn.Sequential(
             nn.Upsample(scale_factor=2),
-            nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=1),
+            nn.Conv2d(32, 128, kernel_size=5, padding=2, stride=1),
             nn.LeakyReLU(0.02),
             nn.Upsample(scale_factor=2),
-            nn.Conv2d(64, NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
+            nn.Conv2d(128, NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
             nn.Tanh())
 
     def forward(self, z, give_pre=False):
@@ -58,7 +58,7 @@ class Gen_Low16(nn.Module):
             out = z
         else:
             out = self.l1(z)
-            out = out.view(self.batch_size,64,4,4)
+            out = out.view(self.batch_size,32,4,4)
         out = self.l2(out)
         return out
 
@@ -72,10 +72,13 @@ class Inf_Low_Med16(nn.Module):
 
         self.l1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=1),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.02),
             nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=2),
+            # nn.BatchNorm2d(128),
             nn.LeakyReLU(0.02),
             nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.02),
             nn.Conv2d(64, 64, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
@@ -101,11 +104,14 @@ class Gen_Low_Med16(nn.Module):
             nn.Linear(nz, 64*4*4))
         self.l2 = nn.Sequential(
             nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
+            # nn.BatchNorm2d(128),
             nn.LeakyReLU(0.02),
             nn.Upsample(scale_factor=2),
             nn.Conv2d(128, 128, kernel_size=5, padding=2, stride=1),
+            # nn.BatchNorm2d(128),
             nn.LeakyReLU(0.02),
             nn.Conv2d(128, 64, kernel_size=5, padding=2, stride=1),
+            # nn.BatchNorm2d(64),
             nn.LeakyReLU(0.02),
             nn.Upsample(scale_factor=2),
             nn.Conv2d(64, NUM_CHANNELS, kernel_size=5, padding=2, stride=1),
@@ -281,4 +287,20 @@ class Inf_High(nn.Module):
 
 
 class Gen_High(nn.Module):
-    pass
+    def __init__(self, batch_size, nz, no):
+        super(Gen_High, self).__init__()
+
+        self.batch_size = batch_size
+        self.l1 = nn.Sequential(
+            nn.Linear(nz, 1024),
+            nn.BatchNorm1d(1024),
+            nn.LeakyReLU(0.02),
+            nn.Linear(1024, 1024),
+            nn.BatchNorm1d(1024),
+            nn.LeakyReLU(0.02),
+            nn.Linear(1024, no),
+            nn.LeakyReLU(0.02))
+
+    def forward(self, z):
+        out = self.l1(z)
+        return out

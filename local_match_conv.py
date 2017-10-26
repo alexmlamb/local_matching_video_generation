@@ -34,10 +34,12 @@ SUM_DISC_OUTS = False
 Z_NORM_MULT = 1e-3
 Z_NORM_MULT = None
 CHECKPOINT_INTERVAL = 1 * 60
-LOWER_ONLY = False
+LOWER_ONLY = True
 REC_PENALTY = True
 REC_SHORTCUT = True
 HIGH_SHORTCUT = True
+LOAD_LOWER = False
+LOWER_SLURM_ID = 65535
 
 start_time = timer()
 
@@ -72,7 +74,7 @@ elif DATASET == 'lsun_bedroom':
                             transforms.ToTensor(),
                             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                         ]))
-    nz = 128
+    nz = 64
     ns = 16
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
@@ -96,7 +98,10 @@ print "ns", ns
 
 #(zL,xL) and (zR,xR)
 from archs.lsun import Disc_Low
-d_bot = Disc_Low(batch_size, seg_length, nz)
+if LOAD_LOWER:
+    d_bot = torch.load(os.path.join(MODELS_DIR, '%d_dbot.pt' % LOWER_SLURM_ID))
+else:
+    d_bot = Disc_Low(batch_size, seg_length, nz)
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
@@ -107,13 +112,19 @@ d_top = Disc_High(batch_size, nz*ns, nz, 256)
 # from archs.mnist import Inf_Low
 # inf_bot = Inf_Low(batch_size, seg_length, nz)
 from archs.lsun import Inf_Low16
-inf_bot = Inf_Low16(batch_size, nz)
+if LOAD_LOWER:
+    inf_bot = torch.load(os.path.join(MODELS_DIR, '%d_infbot.pt' % LOWER_SLURM_ID))
+else:
+    inf_bot = Inf_Low16(batch_size, nz)
 
 #(zL->xL) and (zR->xR)
 # from archs.mnist import Gen_Low
 # gen_bot = Gen_Low(batch_size, seg_length, nz)
 from archs.lsun import Gen_Low16
-gen_bot = Gen_Low16(batch_size, nz)
+if LOAD_LOWER:
+    gen_bot = torch.load(os.path.join(MODELS_DIR, '%d_genbot.pt' % LOWER_SLURM_ID))
+else:
+    gen_bot = Gen_Low16(batch_size, nz)
 
 #(zL,zR -> z)
 inf_top = nn.Sequential(
@@ -246,7 +257,7 @@ for epoch in range(200):
             # g_loss_top = ((d_out_top - boundary_labels)**2).mean()
             
             print "d loss top inf", d_loss_top
-                        
+
             if REC_PENALTY:
                 print "optimizing for high level rec loss"
                 g_loss_top += reconstruction_loss
