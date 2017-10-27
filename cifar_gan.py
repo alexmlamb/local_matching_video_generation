@@ -46,8 +46,8 @@ def torch_to_norm(zs):
     return zs.norm(2).data.cpu().numpy()[0]
 
 
-def var_to_np(x):
-    return x.data.cpu().numpy()
+def var_to_np255(x):
+    return (x.data.cpu().numpy() + 1) * 255.0 / 2
 
 
 batch_size = 100
@@ -88,10 +88,15 @@ gen_optimizer = torch.optim.Adam(gen.parameters(), lr=0.0001, betas=(0.5,0.99))
 checkpoint_i = 1
 inception_i = 1
 start_time = timer()
-for epoch in range(200):
+for epoch in range(200):    
     print 'epoch:', epoch
     for i, (images, _) in enumerate(data_loader):
         images = to_var(images)
+        # print 'min:', images.min()
+        # print 'max:', images.max()
+        # print 'min:', var_to_np255(images).min()
+        # print 'max:', var_to_np255(images).max()
+        # raise Exception()
         
         # Real images
         d_out_real = disc(images)
@@ -139,15 +144,22 @@ for epoch in range(200):
                 
             # Get inception scores
             im_lst = []
+            mi = 255
+            ma = 0
             print 'Getting inception score...'
             for _ in xrange(500):
                 z = to_var(torch.randn(100, nz))
                 fake_images = gen(z)
-                fake_np = var_to_np(fake_images)
+                fake_np = var_to_np255(fake_images)
+                mi = min(mi, fake_np.min())
+                ma = max(ma, fake_np.max())
                 for i in xrange(100):
                     im_lst.append(fake_np[i, :, :, :])
+            print 'fake min:', mi
+            print 'fake max:', ma
                 
             inception_score = get_inception_score(im_lst)
+            print 'inception_score:', inception_score
             inception_scores.append(inception_score)
             
             print 'Saving inception score...'
