@@ -64,7 +64,7 @@ def get_baseline_samples(epoch):
         fake_images = gen(z)
         fake_images_np = var_to_np(fake_images)
         mn = min(mn, fake_images_np.min())
-        mx = min(mn, fake_images_np.min())
+        mx = max(mx, fake_images_np.max())
         for i in xrange(100):
             samples.append(fake_images_np[i, :, :, :])
     print 'min:', mn
@@ -79,8 +79,37 @@ def get_baseline_samples(epoch):
             
 
 def get_higher_samples(epoch):
-    gen_bot = torch.load(os.path.join(FIXED_LOWER_MODELS_FOLDER, '%s_genbot%03d.pt' % (LOWER_ID, epoch)))
+    print 'Drawing samples...' 
+    gen_bot = torch.load(os.path.join(FIXED_LOWER_MODELS_FOLDER, '%s_genbot.pt' % LOWER_ID))
     gen_top = torch.load(os.path.join(HIGHER_MODELS_FOLDER, '%s_gentop%03d.pt' % (HIGHER_ID, epoch)))
+    nz_high = 512
+    
+    samples = []
+    seg_length = 16
+    ns_per_dim = 2
+    mn = 255
+    mx = -255
+    for _ in xrange(500):
+        z_top = to_var(torch.randn(64, nz_high))
+        z_bot = gen_top(z_top)
+        fake_images = torch.zeros(64, 3, 32, 32)
+        for seg in range(0, 4):
+            i = seg / ns_per_dim
+            j = seg % ns_per_dim
+            z_bot = z_bot.view(64, 32, 8, 8)
+            z_volume = z_bot[:, :, i*4:(i+1)*4, j*4:(j+1)*4]
+            x_seg = gen_bot(z_volume, give_pre=True)
+            fake_images[:, :, i*seg_length:(i+1)*seg_length, j*seg_length:(j+1)*seg_length] = x_seg.data
+        fake_images_np = fake_images.cpu().numpy()
+        
+        mn = min(mn, fake_images_np.min())
+        mx = max(mx, fake_images_np.max())
+        for i in xrange(64):
+            samples.append(fake_images_np[i, :, :, :])
+    print 'min:', mn
+    print 'max:', mx
+    
+    return samples
     
     
 def var_to_np(x):
