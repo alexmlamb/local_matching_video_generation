@@ -101,8 +101,8 @@ d_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_dbot.pt' % LOWER_SLURM_ID)
 inf_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_infbot.pt' % LOWER_SLURM_ID))
 gen_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_genbot.pt' % LOWER_SLURM_ID))
 
-from archs.cifar import Disc_High
-d_top = Disc_High(batch_size)
+from archs.cifar import Disc_High2
+d_top = Disc_High2(batch_size)
 # from archs.cifar import Disc_High_fc
 # d_top = Disc_High_fc(batch_size, total_low_z)
 
@@ -113,8 +113,9 @@ inf_top = Inf_High_fc(batch_size, total_low_z, nz_high)
 
 # from archs.cifar import Gen_High
 # gen_top = Gen_High(batch_size, nz_high)
-from archs.cifar import Gen_High_fc
-gen_top = Gen_High_fc(batch_size, nz_high, total_low_z)
+from archs.cifar import Gen_High2
+gen_top = Gen_High2(batch_size, nz_high)
+# gen_top = Gen_High_fc(batch_size, nz_high, total_low_z)
 
 models = [d_top, d_bot, inf_bot, gen_bot, inf_top, gen_top]
 
