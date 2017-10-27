@@ -25,7 +25,7 @@ Then implement a critic.
 '''
 
 slurm_name = os.environ["SLURM_JOB_ID"]
-DATASET = 'lsun_bedroom'
+DATASET = 'cifar'
 DATA_DIR = os.path.join(os.path.abspath('data'), DATASET)
 # OUT_DIR = os.path.join('/scratch/nealbray/loc', DATASET, slurm_name)
 OUT_DIR = os.path.join('/data/lisatmp4/nealbray/loc', DATASET, slurm_name)
@@ -76,6 +76,18 @@ elif DATASET == 'lsun_bedroom':
                         ]))
     nz = 64
     ns = 16
+elif DATASET == 'cifar':
+    batch_size = 64
+    IMAGE_LENGTH = 32
+    NUM_CHANNELS = 3
+    dataset = datasets.CIFAR10('/data/lisa/data/cifar10', train=True, download=False,
+                        transform=transforms.Compose([
+                        transforms.CenterCrop(IMAGE_LENGTH),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    ]))
+    nz = 64
+    ns = 4
 else:
     raise ValueError('Unsupported dataset: %s' % DATASET)
 
@@ -97,7 +109,7 @@ seg_length = IMAGE_LENGTH / ns_per_dim
 print "ns", ns
 
 #(zL,xL) and (zR,xR)
-from archs.lsun import Disc_Low
+from archs.cifar import Disc_Low
 if LOAD_LOWER:
     d_bot = torch.load(os.path.join(MODELS_DIR, '%d_dbot.pt' % LOWER_SLURM_ID))
 else:
@@ -105,13 +117,13 @@ else:
 
 # from D_Top import D_Top
 # d_top = D_Top(batch_size, nz*ns, nz, 256)
-from archs.lsun import Disc_High_fc
-d_top = Disc_High_fc(batch_size, nz*ns, nz, 256)
+from archs.cifar import Disc_High_fc
+d_top = Disc_High_fc(batch_size, 32*4*4*4)
 
 #(xL->zL) and (xR->zR)
 # from archs.mnist import Inf_Low
 # inf_bot = Inf_Low(batch_size, seg_length, nz)
-from archs.lsun import Inf_Low16
+from archs.cifar import Inf_Low16
 if LOAD_LOWER:
     inf_bot = torch.load(os.path.join(MODELS_DIR, '%d_infbot.pt' % LOWER_SLURM_ID))
 else:
@@ -120,7 +132,7 @@ else:
 #(zL->xL) and (zR->xR)
 # from archs.mnist import Gen_Low
 # gen_bot = Gen_Low(batch_size, seg_length, nz)
-from archs.lsun import Gen_Low16
+from archs.cifar import Gen_Low16
 if LOAD_LOWER:
     gen_bot = torch.load(os.path.join(MODELS_DIR, '%d_genbot.pt' % LOWER_SLURM_ID))
 else:
@@ -157,8 +169,9 @@ z_top_norms = []
 checkpoint_i = 1
 for epoch in range(200):
     for i, (images, _) in enumerate(data_loader):
-
-        #batch_size = images.size(0)
+        
+        if images.size(0) != batch_size:
+            continue
 
         #====
         #Inference Procedure
