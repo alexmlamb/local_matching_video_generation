@@ -1,9 +1,11 @@
+#!/usr/bin/env python
 # Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import sys
+sys.path.insert(0, '/u/lambalex/.local/lib/python2.7/site-packages/torch-0.2.0+4af66c4-py2.7-linux-x86_64.egg')
 sys.path.append("/u/lambalex/DeepLearning/dreamprop/lib")
 
 import theano
@@ -121,19 +123,31 @@ if softmax is None:
   _init_inception()
 
 def denorm_incep(inp):
-  return inp*255.0
+  return (inp+1)*(255.0/2.0)
 
 if __name__ == "__main__":
 
+  epoch = int(sys.argv[1])
+  print("epoch: " + str(epoch))
+
+  from sample import get_model_samples
+  dx = get_model_samples('baseline', epoch)
+
+  print(len(dx))
+  print(dx[0].shape)
+
+  for i in range(0, len(dx)):
+      dx[i] = denorm_incep(dx[i])
 
   batch_size = 1
   IMAGE_LENGTH = 32
 
+
   dataset = datasets.CIFAR10('/data/lisa/data/cifar10', train=True, download=False,
                         transform=transforms.Compose([
                         transforms.CenterCrop(IMAGE_LENGTH),
-                        transforms.ToTensor()
-                        #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
                     ]))
   data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
 
@@ -145,15 +159,10 @@ if __name__ == "__main__":
 
     batch_lst.append(images.reshape(3,32,32))
 
-    print(images.max())
-    print(images.min())
 
-  print("Number batches: " + str(len(batch_lst)))
+  a,b = get_inception_score(dx)
 
-
-  a,b = get_inception_score(batch_lst)
-
-  print("real incept")
+  print("fake incept")
   print(a)
   print(b)
 
