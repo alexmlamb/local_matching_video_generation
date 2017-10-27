@@ -36,9 +36,9 @@ SAMPLES_FOLDER = '/data/lisatmp4/nealbray/loc/cifar'
 
 def get_model_samples(model_name, epoch):
     if model_name == 'baseline':
-        get_baseline_samples(epoch)
+        return get_baseline_samples(epoch)
     elif model_name == 'higher':
-        get_higher_samples(epoch)
+        return get_higher_samples(epoch)
     elif model_name == 'joint':
         pass
     else:
