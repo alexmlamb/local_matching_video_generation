@@ -10,6 +10,9 @@ import theano
 import theano.tensor as T
 from load_cifar import CifarData
 import time
+import torch
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 
 import os.path
 import sys
@@ -47,7 +50,9 @@ def get_inception_score(images, splits=2):
         sys.stdout.flush()
         inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
         qw = np.asarray(inp)
-        qw = qw.reshape((bs,32,32,3))
+        #qw = qw.reshape((bs,32,32,3))
+        qw = qw.reshape((bs,3,32,32)).swapaxes(1,3).swapaxes(1,2)
+        print(qw.shape)
         inp = qw.tolist()
         #inp = np.concatenate(inp, 0)
         t0 = time.time()
@@ -114,3 +119,44 @@ def _init_inception():
 
 if softmax is None:
   _init_inception()
+
+def denorm_incep(inp):
+  return inp*255.0
+
+if __name__ == "__main__":
+
+
+  batch_size = 1
+  IMAGE_LENGTH = 32
+
+  dataset = datasets.CIFAR10('/data/lisa/data/cifar10', train=True, download=False,
+                        transform=transforms.Compose([
+                        transforms.CenterCrop(IMAGE_LENGTH),
+                        transforms.ToTensor()
+                        #transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    ]))
+  data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
+
+  batch_lst = []
+
+  for i, (images, _) in enumerate(data_loader):
+    
+    images = denorm_incep(images.numpy())
+
+    batch_lst.append(images.reshape(3,32,32))
+
+    print(images.max())
+    print(images.min())
+
+  print("Number batches: " + str(len(batch_lst)))
+
+
+  a,b = get_inception_score(batch_lst)
+
+  print("real incept")
+  print(a)
+  print(b)
+
+
+
+
