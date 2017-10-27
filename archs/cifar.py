@@ -93,14 +93,19 @@ class Inf_Low16(nn.Module):
 
         self.batch_size = batch_size
 
+        # self.l1 = nn.Sequential(
+        #     nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=2),
+        #     nn.LeakyReLU(0.02),
+        #     nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
+        #     nn.LeakyReLU(0.02),
+        #     nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
+        #     nn.LeakyReLU(0.02),
+        #     nn.Conv2d(256, 32, kernel_size=5, padding=2, stride=1),
+        #     nn.LeakyReLU(0.02))
         self.l1 = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=5, padding=2, stride=2),
+            nn.Conv2d(3, 128, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02),
-            nn.Conv2d(64, 128, kernel_size=5, padding=2, stride=1),
-            nn.LeakyReLU(0.02),
-            nn.Conv2d(128, 256, kernel_size=5, padding=2, stride=2),
-            nn.LeakyReLU(0.02),
-            nn.Conv2d(256, 32, kernel_size=5, padding=2, stride=1),
+            nn.Conv2d(128, 32, kernel_size=5, padding=2, stride=2),
             nn.LeakyReLU(0.02))
 
         self.l2 = nn.Sequential(

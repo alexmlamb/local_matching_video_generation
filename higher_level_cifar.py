@@ -42,7 +42,7 @@ LOAD_LOWER = True
 HIGHER_ONLY = True
 if HIGHER_ONLY:
     LOAD_LOWER = True
-LOWER_SLURM_ID = '69780'
+LOWER_SLURM_ID = '74342'
 LOWER_SLURM_FOLDER = '65961_lower'
 SAVED_MODELS_DIR = os.path.join('/data/lisatmp4/nealbray/loc', DATASET, LOWER_SLURM_ID, 'saved_models')
 
