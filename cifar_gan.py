@@ -17,6 +17,8 @@ from timeit import default_timer as timer
 import pickle
 from math import sqrt
 from reg_loss import gan_loss
+from incept import get_inception_score
+import pickle
 
 '''
 Initially just implement LSGAN on MNIST.  
@@ -31,9 +33,8 @@ DATA_DIR = os.path.join(os.path.abspath('data'), DATASET)
 OUT_DIR = os.path.join('/data/lisatmp4/nealbray/loc/cifar/gan', slurm_name)
 MODELS_DIR = os.path.join(OUT_DIR, 'saved_models')
 SAVED_MODELS_DIR = MODELS_DIR
-CHECKPOINT_INTERVAL = 1 * 60
+CHECKPOINT_INTERVAL = .1 * 60
 
-start_time = timer()
 
 
 def denorm(x):
@@ -45,7 +46,11 @@ def torch_to_norm(zs):
     return zs.norm(2).data.cpu().numpy()[0]
 
 
-batch_size = 64
+def var_to_np(x):
+    return x.data.cpu().numpy()
+
+
+batch_size = 100
 IMAGE_LENGTH = 32
 NUM_CHANNELS = 3
 
@@ -57,7 +62,7 @@ dataset = datasets.CIFAR10('/data/lisa/data/cifar10', train=True, download=False
                     ]))
 data_loader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size, shuffle=True)
 
-nz = 128
+nz = 256
 
 
 # d_bot = torch.load(os.path.join(SAVED_MODELS_DIR, '%s_dbot.pt' % LOWER_SLURM_ID))
@@ -81,6 +86,8 @@ disc_optimizer = torch.optim.Adam(disc.parameters(), lr=0.0001, betas=(0.5,0.99)
 gen_optimizer = torch.optim.Adam(gen.parameters(), lr=0.0001, betas=(0.5,0.99))
 
 checkpoint_i = 1
+inception_i = 1
+start_time = timer()
 for epoch in range(200):
     print 'epoch:', epoch
     for i, (images, _) in enumerate(data_loader):
@@ -115,7 +122,7 @@ for epoch in range(200):
 
         #print d_out_bot
         elapsed = timer() - start_time
-        if elapsed > checkpoint_i * CHECKPOINT_INTERVAL:
+        if elapsed > CHECKPOINT_INTERVAL:
             print 'Writing images and checkpoints'
             make_dir_if_not_exists(OUT_DIR)
             make_dir_if_not_exists(MODELS_DIR)
@@ -129,7 +136,29 @@ for epoch in range(200):
             print 'Saving discriminator...'
             torch.save(disc, os.path.join(MODELS_DIR, '%s_disc.pt' % slurm_name))
                 
+                
+            # Get inception scores
+            im_lst = []
+            print 'Getting inception score...'
+            for _ in xrange(500):
+                z = to_var(torch.randn(100, nz))
+                fake_images = gen(z)
+                fake_np = var_to_np(fake_images)
+                for i in xrange(100):
+                    im_lst.append(fake_np[i, :, :, :])
+                
+            inception_score = get_inception_score(im_lst)
+            inception_scores.append(inception_score)
+            
+            print 'Saving inception score...'
+            with open('inceptions_scores.pkl', 'rb') as f:
+                pickle.dump(inception_score, f)
+            print 'Done saving!'
+            
+            start_time = timer()
             checkpoint_i += 1
+            
+            
                 
 
 end_time = timer()
