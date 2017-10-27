@@ -88,7 +88,7 @@ def get_higher_samples(epoch):
     ns_per_dim = 2
     mn = 255
     mx = -255
-    for _ in xrange(500):
+    for _ in xrange(782):
         z_top = to_var(torch.randn(64, nz_high))
         z_bot = gen_top(z_top)
         fake_images = torch.zeros(64, 3, 32, 32)
@@ -108,7 +108,7 @@ def get_higher_samples(epoch):
     print 'min:', mn
     print 'max:', mx
     
-    return samples
+    return samples[:50000]
 
 
 def get_joint_samples(epoch):
@@ -122,7 +122,7 @@ def get_joint_samples(epoch):
     ns_per_dim = 2
     mn = 255
     mx = -255
-    for _ in xrange(500):
+    for _ in xrange(782):
         z_top = to_var(torch.randn(64, nz_high))
         z_bot = gen_top(z_top)
         fake_images = torch.zeros(64, 3, 32, 32)
@@ -142,7 +142,7 @@ def get_joint_samples(epoch):
     print 'min:', mn
     print 'max:', mx
     
-    return samples
+    return samples[:50000]
     
     
 def var_to_np(x):
