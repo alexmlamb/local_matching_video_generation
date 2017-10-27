@@ -247,7 +247,7 @@ for epoch in range(200):
             save_image(denorm(rec_images_bot), os.path.join(OUT_DIR, 'rec_bot_images%04d.png' % checkpoint_i))
             save_image(denorm(fake_images), os.path.join(OUT_DIR, 'fake_images%04d.png' % checkpoint_i))
             save_image(denorm(images.data), os.path.join(OUT_DIR, 'real_images%04d.png' % checkpoint_i))
-            save_image(denorm(rec_full_bot.data), os.path.join(OUT_DIR, 'rec_full_bot_images%04d.png' % checkpoint_i))
+            save_image(denorm(rec_full_bot), os.path.join(OUT_DIR, 'rec_full_bot_images%04d.png' % checkpoint_i))
             # save_image(denorm(rec_images_top), os.path.join(OUT_DIR, 'rec_images_top%04d.png' % checkpoint_i))
 
         
